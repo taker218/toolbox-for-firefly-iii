@@ -32,6 +32,7 @@ import { parseSegments, extractElements } from './parsers.js';
 import { parseMT940 } from './mt940.js';
 import {
   checkForErrors,
+  checkForCriticalWarnings,
   extractDialogId,
   extractAccounts,
   extractTanMethods,
@@ -39,6 +40,19 @@ import {
   checkTanRequired,
 } from './extractors.js';
 import { sendRequest } from './transport.js';
+
+/**
+ * Custom error class for FinTS authentication issues
+ */
+export class FinTSAuthError extends Error {
+  constructor(
+    message: string,
+    public code: number
+  ) {
+    super(message);
+    this.name = 'FinTSAuthError';
+  }
+}
 
 /**
  * FinTS Client for read-only operations
@@ -101,7 +115,18 @@ export class FinTSClient {
 
     logger.debug(`Parsed ${initParsedSegments.size} segment types from init response`);
 
+    // Check for hard errors first (9xxx codes)
     checkForErrors(initParsedSegments);
+
+    // Check for critical warnings (account locked, PIN wrong, etc.)
+    const criticalWarning = checkForCriticalWarnings(initParsedSegments);
+    if (criticalWarning) {
+      logger.error(`Critical warning: ${criticalWarning.code} - ${criticalWarning.message}`);
+      // End dialog gracefully before throwing
+      this.dialogId = extractDialogId(initParsedSegments);
+      await this.endDialog();
+      throw new FinTSAuthError(criticalWarning.message, criticalWarning.code);
+    }
 
     this.dialogId = extractDialogId(initParsedSegments);
     this.msgNumber++;
@@ -117,14 +142,22 @@ export class FinTSClient {
     );
     logger.info(`Allowed TAN methods for user: ${this.allowedTanMethods.join(', ')}`);
 
-    // Select the first allowed TAN method
-    if (this.allowedTanMethods.length > 0) {
-      this.selectedTanMethod = this.allowedTanMethods[0];
-      logger.info(`Selected TAN method: ${this.selectedTanMethod}`);
+    // Validate that we have allowed TAN methods
+    if (this.allowedTanMethods.length === 0) {
+      logger.error('No allowed TAN methods for user - authentication may have failed');
+      await this.endDialog();
+      throw new FinTSAuthError(
+        'No TAN methods available. Please check your credentials and try again.',
+        3920
+      );
     }
 
+    // Select the first allowed TAN method
+    this.selectedTanMethod = this.allowedTanMethods[0];
+    logger.info(`Selected TAN method: ${this.selectedTanMethod}`);
+
     // If only two-step methods are allowed, we need to start a new dialog with TAN
-    if (this.allowedTanMethods.length > 0 && !this.allowedTanMethods.includes('999')) {
+    if (!this.allowedTanMethods.includes('999')) {
       // End current dialog
       await this.endDialog();
 
