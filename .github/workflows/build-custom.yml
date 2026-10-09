@@ -63,27 +63,37 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Pre-pull builder images with retries: docker/setup-qemu-action and
-      # docker/setup-buildx-action pull these without retry logic, and
+      # Pre-pull builder images with retries and mirror fallback:
+      # setup-qemu/setup-buildx pull these without retry logic, and
       # auth.docker.io intermittently times out from GitHub runner networks.
       # Once present locally, the setup steps skip the registry entirely.
-      - name: Pre-pull builder images (with retries)
+      - name: Pre-pull builder images (with retries and mirror fallback)
         run: |
-          images=("moby/buildkit:buildx-stable-1" "tonistiigi/binfmt:latest")
-          for image in "${images[@]}"; do
-            for attempt in 1 2 3 4 5; do
+          set -u
+          pull_image() {
+            local image="$1"
+            for attempt in 1 2 3; do
               if docker pull "$image"; then
-                echo "Pulled $image"
-                break
-              fi
-              if [ "$attempt" -eq 5 ]; then
-                echo "ERROR: failed to pull $image after 5 attempts"
-                exit 1
+                echo "Pulled $image from docker.io"
+                return 0
               fi
               echo "Attempt $attempt for $image failed, retrying in 15s..."
               sleep 15
             done
-          done
+            # Fallback: Google's Docker Hub mirror, then retag to the
+            # original name so the setup steps find it locally.
+            local mirror="mirror.gcr.io/${image}"
+            echo "Falling back to $mirror ..."
+            if docker pull "$mirror"; then
+              docker tag "$mirror" "$image"
+              echo "Pulled $image via mirror.gcr.io"
+              return 0
+            fi
+            echo "ERROR: failed to pull $image (docker.io and mirror.gcr.io)"
+            return 1
+          }
+          pull_image "moby/buildkit:buildx-stable-1"
+          pull_image "tonistiigi/binfmt:latest"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
