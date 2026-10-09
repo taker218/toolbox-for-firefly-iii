@@ -137,7 +137,9 @@ export class AISuggestionService {
           split.description,
           split.amount,
           split.type,
-          categoryNames
+          categoryNames,
+          split.source_name,
+          split.destination_name
         );
 
         const category = categories.find((c) => c.attributes.name === suggestion.categoryName);

@@ -127,12 +127,22 @@ export async function analyzeForCategory(
   transactionDescription: string,
   amount: string,
   type: string,
-  availableCategories: string[]
+  availableCategories: string[],
+  sourceAccount?: string,
+  destinationAccount?: string
 ): Promise<{ categoryName: string; confidence: number; reasoning: string }> {
   // Normalize amount to standard decimal format for AI
   // Firefly stores amounts as decimal strings like "729.00"
   const numericAmount = parseFloat(amount);
   const formattedAmount = isNaN(numericAmount) ? amount : numericAmount.toFixed(2);
+
+  // Optional account context: helps the AI when descriptions are vague
+  const accountContext = [
+    sourceAccount ? `- Source account: ${sourceAccount}` : '',
+    destinationAccount ? `- Destination account: ${destinationAccount}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const systemPrompt = `You are a financial categorization assistant. Your task is to suggest the most appropriate category for a transaction based on its description, amount, and type.
 
@@ -151,7 +161,7 @@ If no category seems appropriate, use the category that best fits or suggest "Un
 - Description: ${transactionDescription}
 - Amount: ${formattedAmount}
 - Type: ${type}
-
+${accountContext}
 Please suggest the most appropriate category.`;
 
   const response = await chat(
