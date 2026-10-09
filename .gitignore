@@ -171,3 +171,9 @@ docker-compose.override.yml
 *.tar
 *.rar
 .history/
+.sonar/
+.scannerwork/
+
+# SonarQube local scan setup
+sonar-project.properties
+scripts/sonar-scan.ps1
