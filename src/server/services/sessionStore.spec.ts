@@ -278,9 +278,11 @@ describe('sessionStore', () => {
     });
 
     it('should not start multiple intervals', () => {
+      const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
       startCleanupInterval();
       startCleanupInterval(); // Should be no-op
       stopCleanupInterval();
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1);
     });
   });
 
