@@ -63,6 +63,28 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Pre-pull builder images with retries: docker/setup-qemu-action and
+      # docker/setup-buildx-action pull these without retry logic, and
+      # auth.docker.io intermittently times out from GitHub runner networks.
+      # Once present locally, the setup steps skip the registry entirely.
+      - name: Pre-pull builder images (with retries)
+        run: |
+          images=("moby/buildkit:buildx-stable-1" "tonistiigi/binfmt:latest")
+          for image in "${images[@]}"; do
+            for attempt in 1 2 3 4 5; do
+              if docker pull "$image"; then
+                echo "Pulled $image"
+                break
+              fi
+              if [ "$attempt" -eq 5 ]; then
+                echo "ERROR: failed to pull $image after 5 attempts"
+                exit 1
+              fi
+              echo "Attempt $attempt for $image failed, retrying in 15s..."
+              sleep 15
+            done
+          done
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
