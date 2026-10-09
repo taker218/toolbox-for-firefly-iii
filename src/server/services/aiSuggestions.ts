@@ -215,8 +215,14 @@ export class AISuggestionService {
 
     yield { type: 'progress', data: { current: 0, total } };
 
-    const tags = await this.fireflyApi.getAllTags();
-    const tagNames = tags.map((t) => t.attributes.tag);
+    const allTags = await this.fireflyApi.getAllTags();
+    // Never offer the toolbox marker tag itself as a suggestion
+    const tags = allTags.filter((t) => t.attributes.tag !== TAGGER_TAG);
+    const tagInfo = tags.map((t) => ({
+      name: t.attributes.tag,
+      description: t.attributes.description,
+    }));
+    const tagNames = tagInfo.map((t) => t.name);
     logger.debug(`Available tags: ${tagNames.length}`);
 
     if (tagNames.length === 0) {
@@ -238,7 +244,7 @@ export class AISuggestionService {
           split.amount,
           split.type,
           split.tags || [],
-          tagNames
+          tagInfo
         );
 
         const validTags = suggestedTags
@@ -251,7 +257,7 @@ export class AISuggestionService {
               reasoning: s.reasoning,
             };
           })
-          .filter((s) => s.tagId);
+          .filter((s) => s.tagId && s.confidence >= opts.minConfidence);
 
         if (validTags.length > 0) {
           const tagSuggestion: TagSuggestion = {

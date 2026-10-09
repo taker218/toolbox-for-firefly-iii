@@ -184,21 +184,40 @@ Please suggest the most appropriate category.`;
   }
 }
 
+export interface AvailableTagInfo {
+  name: string;
+  description?: string | null;
+}
+
 export async function analyzeForTags(
   transactionDescription: string,
   amount: string,
   type: string,
   existingTags: string[],
-  availableTags: string[]
+  availableTags: AvailableTagInfo[]
 ): Promise<Array<{ tagName: string; confidence: number; reasoning: string }>> {
   // Normalize amount to standard decimal format for AI
   const numericAmount = parseFloat(amount);
   const formattedAmount = isNaN(numericAmount) ? amount : numericAmount.toFixed(2);
 
-  const systemPrompt = `You are a financial tagging assistant. Your task is to suggest appropriate tags for a transaction based on its description, amount, and type.
+  const tagList = availableTags
+    .map((t) => `- ${t.name}: ${t.description?.trim() || 'no description provided'}`)
+    .join('\n');
 
-Available tags: ${availableTags.join(', ')}
+  const systemPrompt = `You are a financial tagging assistant. Your task is to decide which tags from a fixed list apply to a single transaction, based on its description, amount, and type.
+
+Available tags with their intended meaning:
+${tagList}
+
 Tags already on this transaction: ${existingTags.length > 0 ? existingTags.join(', ') : 'None'}
+
+Guidelines:
+- MOST transactions match no tag. Returning an empty suggestions array is the expected, correct outcome for the majority of transactions.
+- Only suggest a tag if the transaction description, amount, or type contains concrete evidence that matches the tag's stated meaning. Do not infer from vague associations.
+- Never use a tag as a catch-all or fallback. If the evidence is weak or ambiguous, return an empty array.
+- Do not suggest tags that are already applied.
+- Maximum 3 suggestions.
+- Be honest about confidence: values below 0.7 mean you are guessing, and guessing is worse than suggesting nothing.
 
 Respond in JSON format with the following structure:
 {
@@ -209,13 +228,7 @@ Respond in JSON format with the following structure:
       "reasoning": "string (brief explanation of why this tag fits)"
     }
   ]
-}
-
-Rules:
-- Only suggest tags that are relevant to the transaction
-- Do not suggest tags that are already applied
-- Return an empty array if no tags are appropriate
-- Maximum 5 suggestions`;
+}`;
 
   const userPrompt = `Transaction details:
 - Description: ${transactionDescription}
