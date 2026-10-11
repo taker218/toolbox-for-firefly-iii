@@ -288,6 +288,18 @@ export function extractAccounts(segments: Map<string, string[]>): FinTSAccount[]
     }
   }
 
+  // Some banks (e.g. Sparkassen) use HISPA/HIUPD entry layouts where the plain
+  // colon-split does not yield usable account number / bank code values
+  // (e.g. entries like 'J::280:<Kontonummer>:<IBAN>:<BIC>'). In that case
+  // derive both from the German IBAN: DE + 2 check digits + 8-digit bank
+  // code + 10-digit account number.
+  for (const account of accounts) {
+    if (account.iban && /^DE[0-9]{20}$/.test(account.iban) && !/^[0-9]+$/.test(account.accountNumber)) {
+      account.accountNumber = account.iban.slice(12, 22).replace(/^0+/, '');
+      account.bankCode = account.iban.slice(4, 12);
+    }
+  }
+
   return accounts;
 }
 
