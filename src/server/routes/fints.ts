@@ -5,6 +5,8 @@ import {
   getFinTSBankIndex,
   getFinTSClientStore,
   getFinTSDialogStateStore,
+  getStoredSystemId,
+  storeSystemId,
 } from '../services/index.js';
 import { isFireflyConfigured, isFinTSConfigured, config } from '../config/index.js';
 import { createLogger } from '../utils/logger.js';
@@ -32,28 +34,6 @@ const logger = createLogger('FinTS:Routes');
 // Use session stores with TTL-based lifecycle management
 const clientStore = getFinTSClientStore<FinTSClient>();
 const dialogStateStore = getFinTSDialogStateStore<FinTSDialogState>();
-
-/**
- * Store for Kundensystem-IDs (device recognition).
- * Key format: `${bankCode}:${userId}`
- * These IDs should be persisted across restarts for optimal UX.
- * In production, consider storing in a database or file.
- */
-const systemIdStore = new Map<string, string>();
-
-function getSystemIdKey(bankCode: string, userId: string): string {
-  return `${bankCode}:${userId}`;
-}
-
-function getStoredSystemId(bankCode: string, userId: string): string | undefined {
-  return systemIdStore.get(getSystemIdKey(bankCode, userId));
-}
-
-function storeSystemId(bankCode: string, userId: string, systemId: string): void {
-  const key = getSystemIdKey(bankCode, userId);
-  systemIdStore.set(key, systemId);
-  logger.info(`Stored Kundensystem-ID for ${bankCode}:${userId.substring(0, 4)}***`);
-}
 
 function getClient(sessionId: string): FinTSClient | undefined {
   return clientStore.get(sessionId);

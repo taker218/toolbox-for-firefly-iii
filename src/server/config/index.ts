@@ -43,6 +43,7 @@ export interface Config {
   fints: {
     productId: string;
     logRedaction: boolean;
+    systemIdStorePath: string;
   };
   // Legacy openai config for backward compatibility
   openai: {
@@ -293,6 +294,9 @@ export const config: Config = {
     // FinTS product registration ID - register at https://www.hbci-zka.de/register/hersteller.htm
     productId: getOptionalEnvVar('FINTS_PRODUCT_ID', ''),
     logRedaction: getOptionalBooleanEnvVar('FINTS_LOG_REDACTION', true),
+    // Persistent store for FinTS Kundensystem-IDs (device recognition).
+    // Relative paths are resolved against the working directory.
+    systemIdStorePath: getOptionalEnvVar('FINTS_SYSTEM_ID_STORE_PATH', 'data/fints-system-ids.json'),
   },
   // Legacy support
   openai: {
