@@ -37,7 +37,10 @@ describe('fintsSystemIdStore', () => {
 
     expect(store.getStoredSystemId('39050000', 'user1')).toBe('sid-123');
 
-    const persisted = JSON.parse(readFileSync(storePath, 'utf-8')) as Record<string, { systemId?: string }>;
+    const persisted = JSON.parse(readFileSync(storePath, 'utf-8')) as Record<
+      string,
+      { systemId?: string }
+    >;
     expect(persisted['39050000:user1']?.systemId).toBe('sid-123');
   });
 
@@ -59,7 +62,10 @@ describe('fintsSystemIdStore', () => {
 describe('saved connections', () => {
   it('should save connection settings and report them without the PIN', () => {
     store.storeSystemId('39050000', 'user1', 'sid-123');
-    store.saveConnection('39050000', 'user1', { url: 'https://banking.example.com/fints', pin: '1234' });
+    store.saveConnection('39050000', 'user1', {
+      url: 'https://banking.example.com/fints',
+      pin: '1234',
+    });
 
     const connections = store.getSavedConnections();
     const entry = connections.find((c) => c.bankCode === '39050000' && c.userId === 'user1');
@@ -93,8 +99,8 @@ describe('saved connections', () => {
     store.saveConnection('50010517', 'user2', { url: 'https://fints.ing.de/fints/' });
 
     expect(store.getSavedPin('50010517', 'user2')).toBeUndefined();
-    expect(
-      store.getSavedConnections().find((c) => c.bankCode === '50010517')?.hasSavedPin
-    ).toBe(false);
+    expect(store.getSavedConnections().find((c) => c.bankCode === '50010517')?.hasSavedPin).toBe(
+      false
+    );
   });
 });

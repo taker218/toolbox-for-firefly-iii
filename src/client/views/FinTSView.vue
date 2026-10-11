@@ -947,12 +947,13 @@ const dialogState = ref<FinTSDialogState | null>(null);
 const selectedAccountIndex = ref(0);
 
 const savePin = ref(false);
-const savedConnections = ref<Array<{ bankCode: string; userId: string; url?: string; hasSavedPin: boolean }>>([]);
+const savedConnections = ref<
+  Array<{ bankCode: string; userId: string; url?: string; hasSavedPin: boolean }>
+>([]);
 const savedPinAvailable = computed(() =>
   savedConnections.value.some(
     (c) => c.bankCode === bankConfig.bankCode && c.userId === bankConfig.userId && c.hasSavedPin
   )
-
 );
 // TAN handling
 const showTanDialog = ref(false);
@@ -1222,7 +1223,7 @@ async function fetchKnownBanks() {
 }
 fetchKnownBanks();
 loadSavedConnections();
- 
+
 // Load saved connections (prefill bank/user and auto-connect when a PIN is saved)
 async function loadSavedConnections() {
   try {

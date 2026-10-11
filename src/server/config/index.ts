@@ -298,8 +298,14 @@ export const config: Config = {
     // Persistent store for FinTS Kundensystem-IDs (device recognition).
     // Persistent store for FinTS import configurations (mapping etc.).
     // Relative paths are resolved against the working directory.
-    importConfigStorePath: getOptionalEnvVar('FINTS_IMPORT_CONFIG_STORE_PATH', 'data/fints-import-configs.json'),
-    systemIdStorePath: getOptionalEnvVar('FINTS_SYSTEM_ID_STORE_PATH', 'data/fints-system-ids.json'),
+    importConfigStorePath: getOptionalEnvVar(
+      'FINTS_IMPORT_CONFIG_STORE_PATH',
+      'data/fints-import-configs.json'
+    ),
+    systemIdStorePath: getOptionalEnvVar(
+      'FINTS_SYSTEM_ID_STORE_PATH',
+      'data/fints-system-ids.json'
+    ),
   },
   // Legacy support
   openai: {

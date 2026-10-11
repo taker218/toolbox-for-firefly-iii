@@ -739,7 +739,8 @@ export function useConverter(): ConverterState & ConverterActions {
     }
 
     // Must have a source or destination account column (name or IBAN)
-    const hasSourceAccount = enabledColumns.includes('source_name') || enabledColumns.includes('source_iban');
+    const hasSourceAccount =
+      enabledColumns.includes('source_name') || enabledColumns.includes('source_iban');
     const hasDestinationAccount =
       enabledColumns.includes('destination_name') || enabledColumns.includes('destination_iban');
     if (!hasSourceAccount && !hasDestinationAccount) {

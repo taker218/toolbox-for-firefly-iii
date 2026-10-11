@@ -332,7 +332,18 @@ describe('FinTS extractors', () => {
       expect(accounts.length).toBeGreaterThan(0);
     });
 
-it('should derive account number and bank code from the IBAN for Sparkassen-style HISPA entries', () => {    const segments = new Map<string, string[]>();    segments.set('HISPA', [      'HISPA:5:1:3+J::280:47870365:DE02390500000047870365:AACSDE33XXX:Kontoinhaber',    ]);    const accounts = extractAccounts(segments);    expect(accounts.length).toBe(1);    expect(accounts[0].iban).toBe('DE02390500000047870365');    expect(accounts[0].accountNumber).toBe('47870365');    expect(accounts[0].bankCode).toBe('39050000');    expect(accounts[0].bic).toBe('AACSDE33XXX');  });
+    it('should derive account number and bank code from the IBAN for Sparkassen-style HISPA entries', () => {
+      const segments = new Map<string, string[]>();
+      segments.set('HISPA', [
+        'HISPA:5:1:3+J::280:47870365:DE02390500000047870365:AACSDE33XXX:Kontoinhaber',
+      ]);
+      const accounts = extractAccounts(segments);
+      expect(accounts.length).toBe(1);
+      expect(accounts[0].iban).toBe('DE02390500000047870365');
+      expect(accounts[0].accountNumber).toBe('47870365');
+      expect(accounts[0].bankCode).toBe('39050000');
+      expect(accounts[0].bic).toBe('AACSDE33XXX');
+    });
     it('should extract accounts from HIUPD segments', () => {
       const segments = new Map<string, string[]>();
       segments.set('HIUPD', [

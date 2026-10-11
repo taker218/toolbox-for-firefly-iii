@@ -24,7 +24,6 @@ import {
   fintsSubmitTanSchema,
   fintsImportSchema,
   fintsImportConfigSchema,
-
   type FinTSConnectBody,
   type FinTSFetchBody,
   type FinTSSubmitTanBody,
@@ -94,7 +93,6 @@ router.get(
     res.json({ success: true, data: banks });
   })
 );
-
 
 // Saved connections for importer prefill (never returns PINs)
 router.get(
@@ -175,7 +173,6 @@ router.post(
       if (currentSystemId && currentSystemId !== '0' && currentSystemId !== storedSystemId) {
         storeSystemId(clientConfig.bankCode, clientConfig.userId, currentSystemId);
       }
-
 
       // Remember connection settings: URL always, PIN only when explicitly requested
       saveConnection(clientConfig.bankCode, clientConfig.userId, {
