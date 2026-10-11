@@ -546,6 +546,21 @@ export class FinTSClient {
     const parsedSegments = parseSegments(response);
     this.msgNumber++;
 
+    // Sparkassen (pushTAN 2.0) answer an in-dialog status query with
+    // 9972 "Statusabfrage nicht möglich" once the decoupled confirmation
+    // has already been processed on their side. Instead of failing, end this
+    // dialog and re-initialize: with the device now recognized, the bank
+    // accepts the dialog without another TAN (noref/nochallenge) and the
+    // account request succeeds.
+    const allHirms = parsedSegments.get('HIRMS') || [];
+    if (allHirms.some((s) => s.includes('9972'))) {
+      logger.info(
+        'Status query not possible (9972) - decoupled confirmation likely already processed. Re-initializing dialog.'
+      );
+      await this.endDialog();
+      return this.initDialog();
+    }
+
     // Check for response code 0900 "TAN gültig" - authentication complete!
     // The bank may include this along with HIUPD (account data) in the same response
     const hirms = parsedSegments.get('HIRMS')?.[0];
