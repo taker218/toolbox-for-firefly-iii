@@ -717,11 +717,10 @@ export class FinTSClient {
     logger.info('Requesting SEPA accounts after TAN...');
     this.secRef = generateMsgRef();
 
-    // Use HKTAN version 7 for decoupled TAN methods (must be consistent throughout dialog)
-    const selectedMethod = this.tanMethods.find((m) => m.id === this.selectedTanMethod);
-    const isDecoupled = selectedMethod?.isDecoupled || false;
-    const hktanVersion = isDecoupled ? 7 : 6;
-
+    // HKSPA is a TAN-less business transaction for Sparkassen and most banks.
+    // Sending HKTAN process 4 for it makes Sparkassen reject the whole message
+    // (9050/9010 "kann nicht verteilt signiert werden"). The dialog is already
+    // authenticated at this point, so HKSPA is sent without HKTAN.
     const accountSegments = [
       buildHNSHK(
         2,
@@ -732,8 +731,7 @@ export class FinTSClient {
         this.selectedTanMethod
       ),
       buildHKSPA(3),
-      buildHKTAN(4, hktanVersion, '4', 'HKSPA'), // Initiate TAN for HKSPA
-      buildHNSHA(5, this.secRef, this.config.pin),
+      buildHNSHA(4, this.secRef, this.config.pin),
     ];
 
     const accountMessage = wrapAuthenticatedMessage(
@@ -832,11 +830,6 @@ export class FinTSClient {
     logger.debug('Date range provided for transaction fetch');
     logger.debug(`Dialog ID: ${this.dialogId}, Message number: ${this.msgNumber}`);
 
-    // Use HKTAN version 7 for decoupled TAN methods (must be consistent throughout dialog)
-    const selectedMethod = this.tanMethods.find((m) => m.id === this.selectedTanMethod);
-    const isDecoupled = selectedMethod?.isDecoupled || false;
-    const hktanVersion = isDecoupled ? 7 : 6;
-
     const allTransactions: FinTSTransaction[] = [];
     let touchDown: string | undefined;
     let pageCount = 0;
@@ -864,8 +857,9 @@ export class FinTSClient {
           options.endDate,
           touchDown
         ),
-        buildHKTAN(4, hktanVersion, '4', 'HKKAZ'), // HKKAZ requires TAN authentication
-        buildHNSHA(5, this.secRef, this.config.pin),
+        // HKKAZ is a TAN-less business transaction for Sparkassen and most
+        // banks; HKTAN process 4 for it is rejected with 9050/9010.
+        buildHNSHA(4, this.secRef, this.config.pin),
       ];
 
       const message = wrapAuthenticatedMessage(
