@@ -16,6 +16,8 @@ interface ImportTransaction {
   description: string;
   source_name?: string;
   destination_name?: string;
+  source_iban?: string;
+  destination_iban?: string;
   category_name?: string;
   budget_name?: string;
   tags?: string;
@@ -57,6 +59,8 @@ function buildTransactionData(tx: ImportTransaction, tags?: string[]): Record<st
   // Only add optional fields if they have actual values
   if (tx.source_name) data.source_name = tx.source_name;
   if (tx.destination_name) data.destination_name = tx.destination_name;
+  if (tx.source_iban) data.source_iban = tx.source_iban;
+  if (tx.destination_iban) data.destination_iban = tx.destination_iban;
   if (tx.category_name) data.category_name = tx.category_name;
   if (tx.budget_name) data.budget_name = tx.budget_name;
   if (tags && tags.length > 0) data.tags = tags;

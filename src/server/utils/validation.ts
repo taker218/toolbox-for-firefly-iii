@@ -80,6 +80,8 @@ export const importTransactionSchema = z.object({
   description: z.string().min(1, 'Description is required').max(1024),
   source_name: z.string().max(255).optional(),
   destination_name: z.string().max(255).optional(),
+  source_iban: z.string().max(34).optional(),
+  destination_iban: z.string().max(34).optional(),
   category_name: z.string().max(255).optional(),
   budget_name: z.string().max(255).optional(),
   tags: z.string().max(1024).optional(),

@@ -16,6 +16,8 @@ export type FireflyImportColumn =
   | 'category_name'
   | 'source_name'
   | 'destination_name'
+  | 'source_iban'
+  | 'destination_iban'
   | 'tags'
   | 'notes'
   | 'internal_reference'
@@ -94,6 +96,18 @@ export const FIREFLY_COLUMNS: Array<{
     id: 'destination_name',
     label: 'Destination Account',
     description: 'Destination account name',
+    required: false,
+  },
+  {
+    id: 'source_iban',
+    label: 'Source Account IBAN',
+    description: 'Source account IBAN',
+    required: false,
+  },
+  {
+    id: 'destination_iban',
+    label: 'Destination Account IBAN',
+    description: 'Destination account IBAN',
     required: false,
   },
   { id: 'tags', label: 'Tags', description: 'Comma-separated tags', required: false },

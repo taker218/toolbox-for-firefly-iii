@@ -246,6 +246,8 @@ export class FireflyApiClient {
       description: string;
       source_name?: string;
       destination_name?: string;
+      source_iban?: string;
+      destination_iban?: string;
       source_id?: string;
       destination_id?: string;
       category_name?: string;

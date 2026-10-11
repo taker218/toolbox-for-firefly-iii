@@ -1636,6 +1636,8 @@ function setupDefaultSwimlanes() {
   converter.addSwimlane('type');
   converter.addSwimlane('destination_name');
   converter.addSwimlane('source_name');
+  converter.addSwimlane('destination_iban');
+  converter.addSwimlane('source_iban');
 
   // Set up default blocks for each
   const swimlanes = converter.config.value.swimlanes;
@@ -1730,6 +1732,48 @@ function setupDefaultSwimlanes() {
             operator: 'greaterThan',
             value: '0',
             blocks: [{ id: generateId(), type: 'column', sourceColumn: 'counterpartyName' }],
+          },
+        ],
+        defaultBlocks: [{ id: generateId(), type: 'static', value: '' }],
+      },
+    ]);
+  }
+
+  // Destination IBAN: counterparty IBAN for withdrawals
+  const destIbanSwimlane = swimlanes.find((s) => s.targetColumn === 'destination_iban');
+  if (destIbanSwimlane) {
+    converter.updateSwimlaneBlocks(destIbanSwimlane.id, [
+      {
+        id: generateId(),
+        type: 'switchCase',
+        useCurrentValue: false,
+        column: 'amount',
+        cases: [
+          {
+            operator: 'lessThan',
+            value: '0',
+            blocks: [{ id: generateId(), type: 'column', sourceColumn: 'counterpartyIban' }],
+          },
+        ],
+        defaultBlocks: [{ id: generateId(), type: 'static', value: '' }],
+      },
+    ]);
+  }
+
+  // Source IBAN: counterparty IBAN for deposits
+  const srcIbanSwimlane = swimlanes.find((s) => s.targetColumn === 'source_iban');
+  if (srcIbanSwimlane) {
+    converter.updateSwimlaneBlocks(srcIbanSwimlane.id, [
+      {
+        id: generateId(),
+        type: 'switchCase',
+        useCurrentValue: false,
+        column: 'amount',
+        cases: [
+          {
+            operator: 'greaterThan',
+            value: '0',
+            blocks: [{ id: generateId(), type: 'column', sourceColumn: 'counterpartyIban' }],
           },
         ],
         defaultBlocks: [{ id: generateId(), type: 'static', value: '' }],

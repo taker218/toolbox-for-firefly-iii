@@ -411,6 +411,8 @@ router.post(
               description: tx.description,
               source_name: tx.source_name,
               destination_name: tx.destination_name,
+              source_iban: tx.source_iban,
+              destination_iban: tx.destination_iban,
               notes: tx.notes,
               external_id: tx.external_id,
               tags: ['Toolbox for FFIII: FinTS Importer'],
