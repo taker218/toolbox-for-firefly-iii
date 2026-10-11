@@ -77,7 +77,7 @@ export function parseMT940(mt940Data: string): FinTSTransaction[] {
         );
 
         if (!trxMatch) {
-          logger.debug('Failed to parse MT940 transaction record');
+          logger.debug(`Failed to parse MT940 transaction record: ${transaction}`);
           continue;
         }
 
