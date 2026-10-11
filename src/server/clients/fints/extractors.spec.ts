@@ -12,6 +12,7 @@ import {
   checkSyncRequired,
   extractSystemId,
   extractMaxSegmentVersion,
+  extractTransactionTanRequirements,
 } from './extractors.js';
 
 // Mock the utils logger
@@ -626,5 +627,25 @@ it('should derive account number and bank code from the IBAN for Sparkassen-styl
       // If both tanProcess and challengeText are empty, returns null
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('extractTransactionTanRequirements', () => {
+  it('should parse TAN requirements from HIPINS transaction pairs', () => {
+    const segments = new Map<string, string[]>();
+    segments.set('HIPINS', [
+      'HIPINS:143:1:4+1+1+0+5:38:6:USERID:CUSTID:HKCSU:J:HKPKB:N:HKKAZ:J:HKSPA:N:HKCAZ:J:HKTAN:N',
+    ]);
+
+    const requirements = extractTransactionTanRequirements(segments);
+    expect(requirements.get('HKKAZ')).toBe(true);
+    expect(requirements.get('HKSPA')).toBe(false);
+    expect(requirements.get('HKCAZ')).toBe(true);
+    expect(requirements.get('HKTAN')).toBe(false);
+  });
+
+  it('should return an empty map when HIPINS is absent', () => {
+    const segments = new Map<string, string[]>();
+    expect(extractTransactionTanRequirements(segments).size).toBe(0);
   });
 });

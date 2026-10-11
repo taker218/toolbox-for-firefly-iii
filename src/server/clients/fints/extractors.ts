@@ -484,3 +484,32 @@ export function checkTanRequired(segments: Map<string, string[]>): FinTSTanReque
 
   return null;
 }
+
+/**
+ * Extract per-transaction TAN requirements from the HIPINS parameter segment.
+ * The last data element of HIPINS contains pairs of <transactionCode>:<J|N>,
+ * e.g. 'HKKAZ:J' (Sparkassen require SCA for statement retrieval).
+ */
+export function extractTransactionTanRequirements(
+  segments: Map<string, string[]>
+): Map<string, boolean> {
+  const hipinsSegments = segments.get('HIPINS') || [];
+  const requirements = new Map<string, boolean>();
+
+  for (const segment of hipinsSegments) {
+    const dataStart = segment.indexOf('+');
+    if (dataStart === -1) continue;
+
+    const elements = segment.slice(dataStart + 1).split('+');
+    const pairList = elements[elements.length - 1];
+    const tokens = pairList.split(':');
+
+    for (let i = 0; i < tokens.length - 1; i++) {
+      if (/^[A-Z]{5,6}$/.test(tokens[i]) && (tokens[i + 1] === 'J' || tokens[i + 1] === 'N')) {
+        requirements.set(tokens[i], tokens[i + 1] === 'J');
+      }
+    }
+  }
+
+  return requirements;
+}

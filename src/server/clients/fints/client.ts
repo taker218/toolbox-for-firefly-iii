@@ -42,6 +42,7 @@ import {
   checkSyncRequired,
   extractSystemId,
   extractMaxSegmentVersion,
+  extractTransactionTanRequirements,
 } from './extractors.js';
 import { sendRequest } from './transport.js';
 
@@ -74,6 +75,8 @@ export class FinTSClient {
   // Highest HKKAZ version the bank advertises in its BPD (HIKAZS segments).
   // Sparkassen typically support HKKAZ up to version 6 and reject version 7.
   private hkkazVersion: number = 7;
+  // Whether HKKAZ requires SCA at this bank, learned from HIPINS ('HKKAZ:J').
+  private hkkazNeedsTan: boolean = true;
 
   constructor(config: FinTSConfig) {
     this.config = config;
@@ -183,6 +186,12 @@ export class FinTSClient {
       this.hkkazVersion = Math.min(hkkazMaxVersion, 7);
       logger.debug(`Bank supports HKKAZ up to version ${this.hkkazVersion}`);
     }
+    // Learn whether HKKAZ requires SCA at this bank (HIPINS HKKAZ:J flag)
+    const tanRequirements = extractTransactionTanRequirements(initParsedSegments);
+    const hkkazNeedsTan = tanRequirements.get('HKKAZ');
+    if (hkkazNeedsTan !== undefined) {
+      this.hkkazNeedsTan = hkkazNeedsTan;
+    }
 
     logger.info(
       `Available TAN methods: ${this.tanMethods.map((m) => `${m.id}:${m.name}`).join(', ')}`
@@ -291,6 +300,12 @@ export class FinTSClient {
     if (hkkazMaxVersion !== null) {
       this.hkkazVersion = Math.min(hkkazMaxVersion, 7);
       logger.debug(`Bank supports HKKAZ up to version ${this.hkkazVersion}`);
+    }
+    // Learn whether HKKAZ requires SCA at this bank (HIPINS HKKAZ:J flag)
+    const tanRequirements = extractTransactionTanRequirements(parsedSegments);
+    const hkkazNeedsTan = tanRequirements.get('HKKAZ');
+    if (hkkazNeedsTan !== undefined) {
+      this.hkkazNeedsTan = hkkazNeedsTan;
     }
 
     // Extract HITAN response for challenge/order reference
@@ -848,6 +863,12 @@ export class FinTSClient {
     logger.debug('Date range provided for transaction fetch');
     logger.debug(`Dialog ID: ${this.dialogId}, Message number: ${this.msgNumber}`);
 
+    // Some banks (e.g. Sparkassen) require SCA for statement retrieval
+    // (HIPINS 'HKKAZ:J'). HKKAZ must then be combined with HKTAN process 4
+    const selectedMethod = this.tanMethods.find((m) => m.id === this.selectedTanMethod);
+    const isDecoupled = selectedMethod?.isDecoupled || false;
+    const hktanVersion = isDecoupled ? 7 : 6;
+
     const allTransactions: FinTSTransaction[] = [];
     let touchDown: string | undefined;
     let pageCount = 0;
@@ -875,9 +896,8 @@ export class FinTSClient {
           options.endDate,
           touchDown
         ),
-        // HKKAZ is a TAN-less business transaction for Sparkassen and most
-        // banks; HKTAN process 4 for it is rejected with 9050/9010.
-        buildHNSHA(4, this.secRef, this.config.pin),
+        ...(this.hkkazNeedsTan ? [buildHKTAN(4, hktanVersion, '4', 'HKKAZ')] : []),
+        buildHNSHA(this.hkkazNeedsTan ? 5 : 4, this.secRef, this.config.pin),
       ];
 
       const message = wrapAuthenticatedMessage(
