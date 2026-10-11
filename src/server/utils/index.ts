@@ -27,6 +27,7 @@ export {
   fintsFetchSchema,
   fintsSubmitTanSchema,
   fintsImportSchema,
+  fintsImportConfigSchema,
   // Common schemas
   dateRangeSchema,
   countTransactionsSchema,
@@ -59,6 +60,7 @@ export type {
   FinTSFetchBody,
   FinTSSubmitTanBody,
   FinTSImportBody,
+  FinTSImportConfigBody,
   // Transaction types
   TransactionListBody,
   TransactionUpdateBody,

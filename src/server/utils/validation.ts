@@ -247,6 +247,27 @@ export const fintsConnectSchema = z.object({
   savePin: z.boolean().optional(),
   productId: z.string().max(100).optional(),
 });
+/**
+ * FinTS import configuration (mapping config stored on the server)
+ */
+export const fintsImportConfigSchema = z
+  .object({
+    version: z.string().max(20).optional(),
+    bank: z.object({
+      bankCode: z.string().min(1, 'Bank code is required').max(20),
+      url: z.string().max(500).optional(),
+      userId: z.string().min(1, 'User ID is required').max(100),
+    }),
+    accountIndex: z.number().int().min(0).optional(),
+    dateRange: z
+      .object({
+        startDate: z.string().max(10),
+        endDate: z.string().max(10),
+      })
+      .optional(),
+    converter: z.unknown(),
+  })
+  .passthrough();
 
 /**
  * FinTS account schema for fetch requests
@@ -552,6 +573,7 @@ export type FinTSConnectBody = z.infer<typeof fintsConnectSchema>;
 export type FinTSFetchBody = z.infer<typeof fintsFetchSchema>;
 export type FinTSSubmitTanBody = z.infer<typeof fintsSubmitTanSchema>;
 export type FinTSImportBody = z.infer<typeof fintsImportSchema>;
+export type FinTSImportConfigBody = z.infer<typeof fintsImportConfigSchema>;
 // Transaction types
 export type TransactionListBody = z.infer<typeof transactionListSchema>;
 export type TransactionUpdateBody = z.infer<typeof transactionUpdateSchema>;

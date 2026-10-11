@@ -44,6 +44,7 @@ export interface Config {
     productId: string;
     logRedaction: boolean;
     systemIdStorePath: string;
+    importConfigStorePath: string;
   };
   // Legacy openai config for backward compatibility
   openai: {
@@ -295,7 +296,9 @@ export const config: Config = {
     productId: getOptionalEnvVar('FINTS_PRODUCT_ID', ''),
     logRedaction: getOptionalBooleanEnvVar('FINTS_LOG_REDACTION', true),
     // Persistent store for FinTS Kundensystem-IDs (device recognition).
+    // Persistent store for FinTS import configurations (mapping etc.).
     // Relative paths are resolved against the working directory.
+    importConfigStorePath: getOptionalEnvVar('FINTS_IMPORT_CONFIG_STORE_PATH', 'data/fints-import-configs.json'),
     systemIdStorePath: getOptionalEnvVar('FINTS_SYSTEM_ID_STORE_PATH', 'data/fints-system-ids.json'),
   },
   // Legacy support

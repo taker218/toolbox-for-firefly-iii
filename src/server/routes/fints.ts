@@ -9,6 +9,9 @@ import {
   saveConnection,
   getSavedPin,
   getSavedConnections,
+  getImportConfig,
+  saveImportConfig,
+  type FinTSImportConfig,
   storeSystemId,
 } from '../services/index.js';
 import { isFireflyConfigured, isFinTSConfigured, config } from '../config/index.js';
@@ -20,6 +23,8 @@ import {
   fintsFetchSchema,
   fintsSubmitTanSchema,
   fintsImportSchema,
+  fintsImportConfigSchema,
+
   type FinTSConnectBody,
   type FinTSFetchBody,
   type FinTSSubmitTanBody,
@@ -97,6 +102,27 @@ router.get(
   asyncHandler(async (_req: Request, res: Response) => {
     const connections = getSavedConnections();
     res.json({ success: true, data: connections });
+  })
+);
+
+// Saved import configuration (server-side, client-independent)
+router.get(
+  '/import-config',
+  asyncHandler(async (req: Request, res: Response) => {
+    const bankCode = typeof req.query.bankCode === 'string' ? req.query.bankCode : undefined;
+    const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+    const importConfig = getImportConfig(bankCode, userId);
+    res.json({ success: true, data: importConfig });
+  })
+);
+
+router.put(
+  '/import-config',
+  validateBody(fintsImportConfigSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const importConfig = req.body as FinTSImportConfig;
+    saveImportConfig(importConfig);
+    res.json({ success: true, data: importConfig });
   })
 );
 // Initialize connection and get accounts

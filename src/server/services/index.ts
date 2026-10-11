@@ -12,6 +12,8 @@ export {
   getSavedPin,
   getSavedConnections,
 } from './fintsSystemIdStore.js';
+export { getImportConfig, saveImportConfig } from './fintsImportConfigStore.js';
+export type { FinTSImportConfig } from './fintsImportConfigStore.js';
 
 // Caching
 export {

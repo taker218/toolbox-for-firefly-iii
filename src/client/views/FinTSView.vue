@@ -1242,6 +1242,34 @@ async function loadSavedConnections() {
   }
 }
 
+// Load the server-side import config so the mapping is available on every client
+async function loadServerImportConfig() {
+  try {
+    const response = await api.get('/fints/import-config');
+    const savedConfig = response.data.data;
+    if (!savedConfig) return;
+
+    if (savedConfig.bank) {
+      bankConfig.bankCode = savedConfig.bank.bankCode || bankConfig.bankCode;
+      bankConfig.url = savedConfig.bank.url || bankConfig.url;
+      bankConfig.userId = savedConfig.bank.userId || bankConfig.userId;
+    }
+    if (savedConfig.converter) {
+      converter.loadConfig(JSON.stringify(savedConfig.converter));
+    }
+    if (typeof savedConfig.accountIndex === 'number') {
+      selectedAccountIndex.value = savedConfig.accountIndex;
+    }
+    if (savedConfig.dateRange) {
+      startDate.value = savedConfig.dateRange.startDate;
+      endDate.value = savedConfig.dateRange.endDate;
+    }
+  } catch (error) {
+    console.error('Failed to load server import config:', error);
+  }
+}
+loadServerImportConfig();
+
 function filterKnownBanks(_value: string, queryText: string, item?: { raw: KnownBank }): boolean {
   if (!queryText) {
     return true;
@@ -1507,6 +1535,10 @@ async function onSaveConfig() {
     },
     converter: converterConfig,
   };
+  // Also store on the server so the config is available from any client
+  api.put('/fints/import-config', fullConfig).catch(() => {
+    // Non-fatal: the local file download still works
+  });
   const json = JSON.stringify(fullConfig, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
 
