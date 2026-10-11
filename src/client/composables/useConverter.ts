@@ -738,13 +738,14 @@ export function useConverter(): ConverterState & ConverterActions {
       }
     }
 
-    // Must have source_name or destination_name (or both)
-    const hasSourceName = enabledColumns.includes('source_name');
-    const hasDestinationName = enabledColumns.includes('destination_name');
-    if (!hasSourceName && !hasDestinationName) {
+    // Must have a source or destination account column (name or IBAN)
+    const hasSourceAccount = enabledColumns.includes('source_name') || enabledColumns.includes('source_iban');
+    const hasDestinationAccount =
+      enabledColumns.includes('destination_name') || enabledColumns.includes('destination_iban');
+    if (!hasSourceAccount && !hasDestinationAccount) {
       errors.push({
         type: 'missing_account',
-        message: 'Must have either Source Account or Destination Account column',
+        message: 'Must have either Source Account or Destination Account column (name or IBAN)',
       });
     }
 
@@ -830,15 +831,15 @@ export function useConverter(): ConverterState & ConverterActions {
 
       // Validate account based on transaction type
       if (txType === 'withdrawal' || txType === 'transfer') {
-        // Withdrawal needs source_name
-        if (!tx.source_name?.trim()) {
+        // Withdrawal needs a source account (name or IBAN)
+        if (!tx.source_name?.trim() && !tx.source_iban?.trim()) {
           missingAccounts.push(rowNum);
           rowValid = false;
         }
       }
       if (txType === 'deposit' || txType === 'transfer') {
-        // Deposit needs destination_name
-        if (!tx.destination_name?.trim()) {
+        // Deposit needs a destination account (name or IBAN)
+        if (!tx.destination_name?.trim() && !tx.destination_iban?.trim()) {
           missingAccounts.push(rowNum);
           rowValid = false;
         }
