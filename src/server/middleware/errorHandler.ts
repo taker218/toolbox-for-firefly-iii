@@ -60,7 +60,9 @@ export function errorHandler(
   if (err instanceof AppError && err.isOperational) {
     logger.warn(`${err.statusCode} ${err.message}`);
   } else {
-    logger.error('Unexpected error', err);
+    // Error instances serialize to '{}' via JSON.stringify (message/stack are
+    // non-enumerable), so pass them explicitly to keep details visible in logs
+    logger.error('Unexpected error', { name: err.name, message: err.message, stack: err.stack });
   }
 
   // Determine status code
