@@ -180,3 +180,27 @@ describe('parseMT940', () => {
     expect(transactions[1].counterpartyName).toBe('Online Shop GmbH');
   });
 });
+
+describe('Sparkasse MT940 credit records', () => {
+  it('should parse credits with numeric transaction codes (N060)', () => {
+    const mt940Data = [
+      ':20:STARTUMSE',
+      ':25:39050000/0047870365',
+      ':28C:00000/001',
+      ':60F:C261007EUR3322,57',
+      ':61:2610081008CR4,00N060NONREF',
+      ':86:152?00GUTSCHR. UEBERW. DAUERAUFTR?109227?20SVWZ+Youtube Famil',
+      'y Shigeak?21o?30WELADED1BOC?31DE25430500010131337255?32Nina Post',
+      ':62F:C261008EUR3326,57',
+    ].join('\r\n');
+
+    const transactions = parseMT940(mt940Data);
+    expect(transactions.length).toBe(1);
+    expect(transactions[0].amount).toBe(4.0);
+    expect(transactions[0].bookingDate).toBe('2026-10-08');
+    expect(transactions[0].valueDate).toBe('2026-10-08');
+    expect(transactions[0].transactionType).toBe('060');
+    expect(transactions[0].counterpartyName).toContain('Nina Post');
+    expect(transactions[0].purpose).toContain('Youtube Famil');
+  });
+});

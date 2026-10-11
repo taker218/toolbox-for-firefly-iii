@@ -73,7 +73,7 @@ export function parseMT940(mt940Data: string): FinTSTransaction[] {
         // Parse transaction line
         // Format: YYMMDD[MMDD](C|D|RC|RD)[letter]amountNtype[ref]
         const trxMatch = transaction.match(
-          /^(\d{6})(\d{4})?(C|D|RC|RD)([A-Z])?([^N]+)N([A-Z]{3})(.*)$/
+          /^(\d{6})(\d{4})?(C|D|RC|RD)([A-Z])?([^N]+)N([A-Z0-9]{3})(.*)$/
         );
 
         if (!trxMatch) {
