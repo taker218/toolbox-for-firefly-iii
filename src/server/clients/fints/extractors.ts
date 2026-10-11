@@ -196,6 +196,31 @@ export function extractSystemId(segments: Map<string, string[]>): string | null 
 }
 
 /**
+ * Extract the highest version the bank supports for a given segment type,
+ * taken from the BPD parameter segments (e.g. HIKAZS:11:5:4 -> version 5).
+ * Returns null when the bank does not advertise the segment type.
+ */
+export function extractMaxSegmentVersion(
+  segments: Map<string, string[]>,
+  name: string
+): number | null {
+  const parameterSegments = segments.get(name) || [];
+  let max: number | null = null;
+
+  for (const segment of parameterSegments) {
+    const match = segment.match(new RegExp('^' + name + ':[0-9]+:([0-9]+)'));
+    if (match) {
+      const version = parseInt(match[1], 10);
+      if (max === null || version > max) {
+        max = version;
+      }
+    }
+  }
+
+  return max;
+}
+
+/**
  * Extract dialog ID from response
  */
 export function extractDialogId(segments: Map<string, string[]>): string {

@@ -41,6 +41,7 @@ import {
   checkTanRequired,
   checkSyncRequired,
   extractSystemId,
+  extractMaxSegmentVersion,
 } from './extractors.js';
 import { sendRequest } from './transport.js';
 
@@ -70,6 +71,9 @@ export class FinTSClient {
   private allowedTanMethods: string[] = [];
   private selectedTanMethod: string = '999'; // Default to single-step
   private orderRef: string = '';
+  // Highest HKKAZ version the bank advertises in its BPD (HIKAZS segments).
+  // Sparkassen typically support HKKAZ up to version 6 and reject version 7.
+  private hkkazVersion: number = 7;
 
   constructor(config: FinTSConfig) {
     this.config = config;
@@ -173,6 +177,13 @@ export class FinTSClient {
     this.tanMethods = extractTanMethods(initParsedSegments);
     this.allowedTanMethods = extractAllowedTanMethods(initParsedSegments);
 
+    // Learn the highest HKKAZ version the bank supports from the BPD
+    const hkkazMaxVersion = extractMaxSegmentVersion(initParsedSegments, 'HIKAZS');
+    if (hkkazMaxVersion !== null) {
+      this.hkkazVersion = Math.min(hkkazMaxVersion, 7);
+      logger.debug(`Bank supports HKKAZ up to version ${this.hkkazVersion}`);
+    }
+
     logger.info(
       `Available TAN methods: ${this.tanMethods.map((m) => `${m.id}:${m.name}`).join(', ')}`
     );
@@ -274,6 +285,13 @@ export class FinTSClient {
 
     // Don't check for errors yet - 0030 (TAN required) is expected
     this.dialogId = extractDialogId(parsedSegments);
+
+    // Learn the highest HKKAZ version the bank supports from the BPD
+    const hkkazMaxVersion = extractMaxSegmentVersion(parsedSegments, 'HIKAZS');
+    if (hkkazMaxVersion !== null) {
+      this.hkkazVersion = Math.min(hkkazMaxVersion, 7);
+      logger.debug(`Bank supports HKKAZ up to version ${this.hkkazVersion}`);
+    }
 
     // Extract HITAN response for challenge/order reference
     const hitan = parsedSegments.get('HITAN')?.[0];
@@ -851,7 +869,7 @@ export class FinTSClient {
         ),
         buildHKKAZ(
           3,
-          7, // Version 7 for SEPA
+          this.hkkazVersion, // Highest version supported by the bank (from BPD)
           options.account,
           options.startDate,
           options.endDate,

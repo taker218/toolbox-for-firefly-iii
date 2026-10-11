@@ -11,6 +11,7 @@ import {
   checkForCriticalWarnings,
   checkSyncRequired,
   extractSystemId,
+  extractMaxSegmentVersion,
 } from './extractors.js';
 
 // Mock the utils logger
@@ -265,6 +266,33 @@ describe('FinTS extractors', () => {
       const systemId = extractSystemId(segments);
       // Should skip the :5 reference and find the actual system ID
       expect(systemId).toBe('SYSID12345');
+    });
+  });
+
+  describe('extractMaxSegmentVersion', () => {
+    it('should return the highest advertised version from BPD segments', () => {
+      const segments = new Map<string, string[]>();
+      segments.set('HIKAZS', [
+        'HIKAZS:11:5:4+1+1+390:N:N',
+        'HIKAZS:12:6:4+1+1+390:N:N',
+        'HIKAZS:13:4:4+1+1+390:N:N',
+      ]);
+
+      expect(extractMaxSegmentVersion(segments, 'HIKAZS')).toBe(6);
+    });
+
+    it('should return null when the bank does not advertise the segment', () => {
+      const segments = new Map<string, string[]>();
+      segments.set('HIRMG', ['HIRMG:2:2+0010::Nachricht entgegengenommen.']);
+
+      expect(extractMaxSegmentVersion(segments, 'HIKAZS')).toBeNull();
+    });
+
+    it('should parse versions from segments with and without segment reference', () => {
+      const segments = new Map<string, string[]>();
+      segments.set('HIKAZS', ['HIKAZS:11:5:4+1+1+390:N:N', 'HIKAZS:12:7+1+1+390:N:N']);
+
+      expect(extractMaxSegmentVersion(segments, 'HIKAZS')).toBe(7);
     });
   });
 
