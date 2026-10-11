@@ -5,7 +5,13 @@ export { AISuggestionService } from './aiSuggestions.js';
 export { AmazonOrderExtender } from './amazonExtender.js';
 export { PayPalExtender } from './paypalExtender.js';
 export { getFinTSBankIndex, preloadFinTSBankIndex } from './fintsBankIndex.js';
-export { getStoredSystemId, storeSystemId } from './fintsSystemIdStore.js';
+export {
+  getStoredSystemId,
+  storeSystemId,
+  saveConnection,
+  getSavedPin,
+  getSavedConnections,
+} from './fintsSystemIdStore.js';
 
 // Caching
 export {

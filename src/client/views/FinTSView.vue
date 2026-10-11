@@ -139,6 +139,14 @@
                       />
                     </v-col>
                   </v-row>
+                  <v-checkbox
+                    v-model="savePin"
+                    :label="t('views.fints.savePin')"
+                    density="compact"
+                    hide-details
+                    :disabled="connecting || dialogState !== null"
+                    class="mb-2"
+                  />
 
                   <!-- Account & Date Range (always visible, disabled when not connected) -->
                   <v-row dense>
@@ -938,6 +946,14 @@ const connecting = ref(false);
 const dialogState = ref<FinTSDialogState | null>(null);
 const selectedAccountIndex = ref(0);
 
+const savePin = ref(false);
+const savedConnections = ref<Array<{ bankCode: string; userId: string; url?: string; hasSavedPin: boolean }>>([]);
+const savedPinAvailable = computed(() =>
+  savedConnections.value.some(
+    (c) => c.bankCode === bankConfig.bankCode && c.userId === bankConfig.userId && c.hasSavedPin
+  )
+
+);
 // TAN handling
 const showTanDialog = ref(false);
 const tanRequest = ref<FinTSTanRequest | null>(null);
@@ -1084,7 +1100,7 @@ const canConnect = computed(() => {
     bankConfig.bankCode &&
     bankConfig.url &&
     bankConfig.userId &&
-    bankConfig.pin &&
+    (bankConfig.pin || savedPinAvailable.value) &&
     !connecting.value
   );
 });
@@ -1205,6 +1221,26 @@ async function fetchKnownBanks() {
   }
 }
 fetchKnownBanks();
+loadSavedConnections();
+ 
+// Load saved connections (prefill bank/user and auto-connect when a PIN is saved)
+async function loadSavedConnections() {
+  try {
+    const response = await api.get('/fints/saved-connections');
+    savedConnections.value = response.data.data || [];
+    const saved = savedConnections.value[0];
+    if (saved && !dialogState.value) {
+      bankConfig.bankCode = saved.bankCode;
+      bankConfig.url = saved.url || '';
+      bankConfig.userId = saved.userId;
+      if (saved.hasSavedPin) {
+        connect();
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load saved connections:', error);
+  }
+}
 
 function filterKnownBanks(_value: string, queryText: string, item?: { raw: KnownBank }): boolean {
   if (!queryText) {
@@ -1240,6 +1276,7 @@ async function connect() {
       url: bankConfig.url,
       userId: bankConfig.userId,
       pin: bankConfig.pin,
+      savePin: savePin.value,
     });
 
     const state = response.data.data as FinTSDialogState;

@@ -6,6 +6,9 @@ import {
   getFinTSClientStore,
   getFinTSDialogStateStore,
   getStoredSystemId,
+  saveConnection,
+  getSavedPin,
+  getSavedConnections,
   storeSystemId,
 } from '../services/index.js';
 import { isFireflyConfigured, isFinTSConfigured, config } from '../config/index.js';
@@ -87,7 +90,17 @@ router.get(
   })
 );
 
+
+// Saved connections for importer prefill (never returns PINs)
+router.get(
+  '/saved-connections',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const connections = getSavedConnections();
+    res.json({ success: true, data: connections });
+  })
+);
 // Initialize connection and get accounts
+
 router.post(
   '/connect',
   validateBody(fintsConnectSchema),
@@ -99,6 +112,11 @@ router.post(
 
     // Clear any existing client
     await clearClient(sessionId);
+    // Use the request PIN, or the saved one when the user opted in earlier
+    const pin = clientConfig.pin?.trim() || getSavedPin(clientConfig.bankCode, clientConfig.userId);
+    if (!pin) {
+      throw badRequest('PIN is required. Enter your PIN or enable saving it in the importer.');
+    }
 
     // Check for stored Kundensystem-ID (device recognition)
     const storedSystemId = getStoredSystemId(clientConfig.bankCode, clientConfig.userId);
@@ -110,6 +128,7 @@ router.post(
     const fintsConfig = {
       ...clientConfig,
       productId: config.fints.productId,
+      pin,
       systemId: storedSystemId,
       // Callback to store new systemId when received from bank
       onSystemIdReceived: (newSystemId: string) => {
@@ -131,6 +150,12 @@ router.post(
         storeSystemId(clientConfig.bankCode, clientConfig.userId, currentSystemId);
       }
 
+
+      // Remember connection settings: URL always, PIN only when explicitly requested
+      saveConnection(clientConfig.bankCode, clientConfig.userId, {
+        url: clientConfig.url,
+        pin: clientConfig.savePin ? pin : undefined,
+      });
       logger.info(`Connection successful, found ${state.accounts?.length || 0} accounts`);
 
       res.json({

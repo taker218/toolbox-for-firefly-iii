@@ -562,6 +562,7 @@
       "selectYourBank": "Wählen Sie Ihre Bank",
       "selectBank": "Bank auswählen",
       "loginData": "Anmeldedaten",
+      "savePin": "PIN auf diesem Server merken (unverschlüsselt gespeichert)",
       "transactionsCount": "{count} Transaktion(en)",
       "help": {
         "step1Text": "Jede Karte repräsentiert ein Firefly III-Feld. Fügen Sie Transformationsblöcke hinzu, um Ihre Bankdaten zuzuordnen.",

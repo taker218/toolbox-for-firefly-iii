@@ -562,6 +562,7 @@
       "selectYourBank": "Select your bank",
       "selectBank": "Select a bank",
       "loginData": "Login Data",
+      "savePin": "Remember PIN on this server (stored in plain text)",
       "transactionsCount": "{count} transaction(s)",
       "help": {
         "step1Text": "Each card represents a Firefly III field. Add transformation blocks to map your bank data.",

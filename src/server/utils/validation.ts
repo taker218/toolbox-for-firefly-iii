@@ -243,7 +243,8 @@ export const fintsConnectSchema = z.object({
   bankCode: z.string().min(1, 'Bank code is required').max(20),
   url: fintsUrl,
   userId: z.string().min(1, 'User ID is required').max(100),
-  pin: z.string().min(1, 'PIN is required').max(100),
+  pin: z.string().max(100).optional(),
+  savePin: z.boolean().optional(),
   productId: z.string().max(100).optional(),
 });
 
