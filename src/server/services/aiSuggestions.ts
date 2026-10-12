@@ -115,7 +115,11 @@ export class AISuggestionService {
     yield { type: 'progress', data: { current: 0, total } };
 
     const categories = await this.fireflyApi.getAllCategories();
-    const categoryNames = categories.map((c) => c.attributes.name);
+    const categoryInfo = categories.map((c) => ({
+      name: c.attributes.name,
+      description: c.attributes.notes,
+    }));
+    const categoryNames = categoryInfo.map((c) => c.name);
     logger.debug(`Available categories: ${categoryNames.length}`);
 
     if (categoryNames.length === 0) {
@@ -137,7 +141,7 @@ export class AISuggestionService {
           split.description,
           split.amount,
           split.type,
-          categoryNames,
+          categoryInfo,
           split.source_name,
           split.destination_name
         );

@@ -127,7 +127,7 @@ export async function analyzeForCategory(
   transactionDescription: string,
   amount: string,
   type: string,
-  availableCategories: string[],
+  availableCategories: AvailableInfo[],
   sourceAccount?: string,
   destinationAccount?: string
 ): Promise<{ categoryName: string; confidence: number; reasoning: string }> {
@@ -144,9 +144,18 @@ export async function analyzeForCategory(
     .filter(Boolean)
     .join('\n');
 
+  const categoryList = availableCategories
+    .map((c) => `- ${c.name}: ${c.description?.trim() || 'no description provided'}`)
+    .join('\n');
+
   const systemPrompt = `You are a financial categorization assistant. Your task is to suggest the most appropriate category for a transaction based on its description, amount, and type.
 
-Available categories: ${availableCategories.join(', ')}
+Available categories with their intended meaning:
+${categoryList}
+
+Guidelines:
+- Use the stated meaning of each category, not just its name. If a category's meaning explicitly excludes the transaction, do not use that category even if the name loosely fits.
+- Prefer "Uncategorized" with low confidence over a guess that contradicts the stated meanings.
 
 Respond in JSON format with the following structure:
 {
@@ -184,7 +193,7 @@ Please suggest the most appropriate category.`;
   }
 }
 
-export interface AvailableTagInfo {
+export interface AvailableInfo {
   name: string;
   description?: string | null;
 }
@@ -194,7 +203,7 @@ export async function analyzeForTags(
   amount: string,
   type: string,
   existingTags: string[],
-  availableTags: AvailableTagInfo[]
+  availableTags: AvailableInfo[]
 ): Promise<Array<{ tagName: string; confidence: number; reasoning: string }>> {
   // Normalize amount to standard decimal format for AI
   const numericAmount = parseFloat(amount);
