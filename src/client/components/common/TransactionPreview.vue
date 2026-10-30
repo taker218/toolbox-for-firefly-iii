@@ -5,10 +5,26 @@
         <v-icon class="mr-2" size="small">mdi-format-list-bulleted</v-icon>
         {{ t('components.transactionPreview.title') }}
       </div>
-      <v-chip v-if="totalCount > 0" size="small" color="success" variant="tonal">
-        <v-icon start size="small">mdi-file-document-multiple</v-icon>
-        {{ transactions.length }} of {{ totalCount }}
-      </v-chip>
+      <div class="d-flex align-center ga-2">
+        <v-chip v-if="totalCount > 0" size="small" color="success" variant="tonal">
+          <v-icon start size="small">mdi-file-document-multiple</v-icon>
+          {{ transactions.length }} of {{ totalCount }}
+        </v-chip>
+        <v-tooltip location="top">
+          <template #activator="{ props: tooltipProps }">
+            <v-btn
+              v-bind="tooltipProps"
+              icon="mdi-refresh"
+              size="small"
+              variant="text"
+              :loading="loading"
+              :disabled="loadingMore"
+              @click="emit('refresh')"
+            />
+          </template>
+          <span>{{ t('components.transactionPreview.refresh') }}</span>
+        </v-tooltip>
+      </div>
     </v-card-title>
     <v-card-text class="pt-0">
       <!-- Loading State (initial load) -->
@@ -122,6 +138,7 @@ const isRefreshing = computed(
 
 const emit = defineEmits<{
   (e: 'load-more'): void;
+  (e: 'refresh'): void;
 }>();
 
 // Use count prop if provided, otherwise fall back to transactions length

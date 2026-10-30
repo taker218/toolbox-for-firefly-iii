@@ -123,6 +123,7 @@
           :loading-text="t('views.paypal.loadingText')"
           @change="debouncedFetchTransactions"
           @load-more="loadMoreTransactions"
+          @refresh="preview.refresh()"
         >
           <template #options>
             <v-checkbox

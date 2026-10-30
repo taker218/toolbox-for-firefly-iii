@@ -323,7 +323,8 @@ router.post(
   '/count-uncategorized',
   validateBody(countTransactionsSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { startDate, endDate, filters, limit, offset } = req.body as CountTransactionsBody;
+    const { startDate, endDate, filters, limit, offset, refresh } =
+      req.body as CountTransactionsBody;
     const sessionId = getPersistedSessionId(req);
     const filterKey = serializeTransactionFilters(filters);
     const cacheKey = getCacheKey(startDate, endDate, `uncategorized-${filterKey}`);
@@ -332,7 +333,7 @@ router.post(
     const service = new AISuggestionService(fireflyApi);
 
     // Check cache first
-    let transactions = getCachedTransactions(sessionId, cacheKey);
+    let transactions = refresh ? null : getCachedTransactions(sessionId, cacheKey);
     if (!transactions) {
       transactions = await service.getUncategorizedTransactions(startDate, endDate, filters);
       // Cache for later use in stream-categories
@@ -358,7 +359,8 @@ router.post(
   '/count-untagged',
   validateBody(countTransactionsSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { startDate, endDate, filters, limit, offset } = req.body as CountTransactionsBody;
+    const { startDate, endDate, filters, limit, offset, refresh } =
+      req.body as CountTransactionsBody;
     const sessionId = getPersistedSessionId(req);
     const filterKey = serializeTransactionFilters(filters);
     const cacheKey = getCacheKey(startDate, endDate, `untagged-${filterKey}`);
@@ -367,7 +369,7 @@ router.post(
     const service = new AISuggestionService(fireflyApi);
 
     // Check cache first
-    let transactions = getCachedTransactions(sessionId, cacheKey);
+    let transactions = refresh ? null : getCachedTransactions(sessionId, cacheKey);
     if (!transactions) {
       transactions = await service.getUnprocessedTransactionsForTags(startDate, endDate, filters);
       // Cache for later use in stream-tags

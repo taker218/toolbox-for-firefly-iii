@@ -255,6 +255,8 @@ export const LinkConfidenceBreakdownSchema = z.object({
   keywordMatch: z.number(),
   dateProximity: z.number(),
   sameAccount: z.number(),
+  unusualAmount: z.number(),
+  uniqueAmount: z.number(),
 });
 
 const LinkedJournalSchema = z.object({
@@ -268,9 +270,9 @@ const LinkedJournalSchema = z.object({
  */
 export const LinkCandidateSchema = z.object({
   id: z.string(),
-  detectors: z.array(z.enum(['refund', 'reference'])),
-  inward: LinkedJournalSchema,
-  outward: LinkedJournalSchema,
+  detectors: z.array(z.enum(['refund', 'reimbursement', 'reference'])),
+  original: LinkedJournalSchema,
+  related: LinkedJournalSchema,
   suggestedLinkType: z.string(),
   isPartial: z.boolean(),
   matchedReference: z.string().optional(),

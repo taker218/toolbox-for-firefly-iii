@@ -26,6 +26,7 @@
       :loading-text="resolvedLoadingText"
       class="mt-4"
       @load-more="$emit('load-more')"
+      @refresh="$emit('refresh')"
     />
   </div>
 </template>
@@ -79,6 +80,7 @@ const emit = defineEmits<{
   'update:filters': [value: TransactionFilters];
   change: [];
   'load-more': [];
+  refresh: [];
 }>();
 
 const resolvedLoadingText = computed(

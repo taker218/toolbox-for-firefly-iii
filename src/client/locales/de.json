@@ -442,6 +442,7 @@
       },
       "detectors": {
         "refund": "Erstattung",
+        "reimbursement": "Auslagenerstattung",
         "reference": "Gemeinsame Referenz"
       },
       "partial": "Teilbetrag",
@@ -459,9 +460,11 @@
       "breakdown": {
         "referenceMatch": "Gemeinsame Referenz",
         "counterpartyMatch": "Gegenkonto",
-        "keywordMatch": "Erstattungs-Stichwort",
+        "keywordMatch": "Stichwort",
         "dateProximity": "Zeitabstand",
-        "sameAccount": "Gleiches Konto"
+        "sameAccount": "Gleiches Konto",
+        "unusualAmount": "Krummer Betrag",
+        "uniqueAmount": "Eindeutiger Betrag"
       }
     },
     "amazon": {
@@ -716,7 +719,8 @@
       "noTransactions": "Keine Transaktionen zur Vorschau",
       "selectDateRange": "Wählen Sie einen Datumsbereich, um Transaktionen zu laden",
       "loadingMore": "Lade mehr...",
-      "fromTo": "Von → Bis"
+      "fromTo": "Von → Bis",
+      "refresh": "Neu aus Firefly III laden"
     },
     "dateRangeFilter": {
       "showFilters": "Mehr Filter",

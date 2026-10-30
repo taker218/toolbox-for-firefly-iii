@@ -11,6 +11,10 @@ import {
 } from '../services/transactionCache.js';
 
 const logger = createLogger('Subscriptions');
+
+// Subscriptions only fetch withdrawals, so they must not share the cache entry of tools
+// that need all transaction types for the same date range
+const WITHDRAWALS_CACHE_SUFFIX = 'withdrawals';
 import {
   validateBody,
   subscriptionFindSchema,
@@ -42,7 +46,7 @@ router.post(
   async (req: Request, res: Response) => {
     const { startDate, endDate, options } = req.body as SubscriptionFindBody;
     const sessionId = getPersistedSessionId(req);
-    const cacheKey = getCacheKey(startDate, endDate);
+    const cacheKey = getCacheKey(startDate, endDate, WITHDRAWALS_CACHE_SUFFIX);
 
     logger.debug(`Stream find subscriptions started`, { startDate, endDate, options });
 
@@ -155,14 +159,14 @@ router.post(
   '/count-transactions',
   validateBody(countTransactionsSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { startDate, endDate, limit, offset } = req.body as CountTransactionsBody;
+    const { startDate, endDate, limit, offset, refresh } = req.body as CountTransactionsBody;
     const sessionId = getPersistedSessionId(req);
-    const cacheKey = getCacheKey(startDate, endDate);
+    const cacheKey = getCacheKey(startDate, endDate, WITHDRAWALS_CACHE_SUFFIX);
 
     const fireflyApi = getFireflyApi();
 
     // Check cache first, fetch only if not cached
-    let transactions = getCachedTransactions(sessionId, cacheKey);
+    let transactions = refresh ? null : getCachedTransactions(sessionId, cacheKey);
     if (!transactions) {
       // For subscriptions, we only care about withdrawals
       const fetched = await fireflyApi.getAllTransactions(startDate, endDate, 'withdrawal');

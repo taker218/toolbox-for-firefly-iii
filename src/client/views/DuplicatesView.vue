@@ -25,6 +25,7 @@
           :loading-text="t('common.status.fetchingTransactions')"
           @change="debouncedFetchCount"
           @load-more="loadMoreTransactions"
+          @refresh="preview.refresh()"
         />
       </template>
 

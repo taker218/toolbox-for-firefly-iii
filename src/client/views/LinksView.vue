@@ -25,22 +25,18 @@
           :loading-text="t('common.status.fetchingTransactions')"
           @change="debouncedFetchCount"
           @load-more="loadMoreTransactions"
+          @refresh="preview.refresh()"
         >
           <template #options>
             <v-divider class="my-4" />
             <div class="text-subtitle-2 mb-2">{{ t('views.links.options.detectors') }}</div>
             <div class="d-flex flex-wrap ga-4">
               <v-checkbox
+                v-for="detector in DETECTORS"
+                :key="detector"
                 v-model="options.detectors"
-                value="refund"
-                :label="t('views.links.detectors.refund')"
-                density="compact"
-                hide-details
-              />
-              <v-checkbox
-                v-model="options.detectors"
-                value="reference"
-                :label="t('views.links.detectors.reference')"
+                :value="detector"
+                :label="t(`views.links.detectors.${detector}`)"
                 density="compact"
                 hide-details
               />
@@ -138,6 +134,7 @@
           >
             <v-card-title class="d-flex align-center flex-wrap ga-2 py-2">
               <v-checkbox-btn
+                class="flex-grow-0"
                 :model-value="selection.isSelected(candidate.id)"
                 @update:model-value="selection.toggle(candidate.id, $event)"
               />
@@ -145,8 +142,8 @@
                 v-for="detector in candidate.detectors"
                 :key="detector"
                 size="small"
-                :color="detector === 'refund' ? 'deep-orange' : 'blue'"
-                :prepend-icon="detector === 'refund' ? 'mdi-cash-refund' : 'mdi-pound'"
+                :color="DETECTOR_STYLES[detector].color"
+                :prepend-icon="DETECTOR_STYLES[detector].icon"
               >
                 {{ t(`views.links.detectors.${detector}`) }}
               </v-chip>
@@ -181,14 +178,18 @@
             </v-card-title>
 
             <v-card-text>
-              <v-row align="center" dense>
-                <v-col cols="12" md="5">
+              <v-row dense>
+                <v-col cols="12" md="5" class="d-flex flex-column">
                   <div class="text-caption text-medium-emphasis mb-1">
                     {{ t('views.links.original') }}
                   </div>
-                  <TransactionCard :transaction="candidate.inward.split" variant="outlined" />
+                  <TransactionCard
+                    :transaction="candidate.original.split"
+                    variant="outlined"
+                    class="flex-grow-1"
+                  />
                 </v-col>
-                <v-col cols="12" md="2" class="d-flex flex-column align-center">
+                <v-col cols="12" md="2" class="d-flex flex-column align-center justify-center">
                   <v-icon icon="mdi-arrow-right-bold" class="link-arrow mb-2" />
                   <v-select
                     v-model="linkTypeByCandidate[candidate.id]"
@@ -200,11 +201,15 @@
                     class="w-100"
                   />
                 </v-col>
-                <v-col cols="12" md="5">
+                <v-col cols="12" md="5" class="d-flex flex-column">
                   <div class="text-caption text-medium-emphasis mb-1">
                     {{ t('views.links.related') }}
                   </div>
-                  <TransactionCard :transaction="candidate.outward.split" variant="outlined" />
+                  <TransactionCard
+                    :transaction="candidate.related.split"
+                    variant="outlined"
+                    class="flex-grow-1"
+                  />
                 </v-col>
               </v-row>
             </v-card-text>
@@ -264,6 +269,14 @@ import { LinkCandidateSchema } from '../utils';
 /** Maximum links per create-bulk request (matches server validation) */
 const LINK_BATCH_SIZE = 100;
 
+const DETECTORS: LinkDetector[] = ['refund', 'reimbursement', 'reference'];
+
+const DETECTOR_STYLES: Record<LinkDetector, { color: string; icon: string }> = {
+  refund: { color: 'deep-orange', icon: 'mdi-cash-refund' },
+  reimbursement: { color: 'teal', icon: 'mdi-account-cash' },
+  reference: { color: 'blue', icon: 'mdi-pound' },
+};
+
 // i18n
 const { t } = useI18n();
 
@@ -284,7 +297,7 @@ const wizardSteps = computed(() => [
 const startDate = ref<string>();
 const endDate = ref<string>();
 const options = reactive({
-  detectors: ['refund', 'reference'] as LinkDetector[],
+  detectors: [...DETECTORS],
   maxDaysApart: 90,
   minConfidence: 0.6,
   allowPartialAmount: true,
@@ -311,20 +324,13 @@ const linkTypeItems = computed(() =>
   linkTypes.value.map((lt) => ({ title: lt.name, value: lt.name }))
 );
 
-const summaryStats = computed(() => [
-  {
-    label: t('views.links.detectors.refund'),
-    value: candidates.value.filter((c) => c.detectors.includes('refund')).length,
-    color: 'deep-orange',
-    icon: 'mdi-cash-refund',
-  },
-  {
-    label: t('views.links.detectors.reference'),
-    value: candidates.value.filter((c) => c.detectors.includes('reference')).length,
-    color: 'blue',
-    icon: 'mdi-pound',
-  },
-]);
+const summaryStats = computed(() =>
+  DETECTORS.map((detector) => ({
+    label: t(`views.links.detectors.${detector}`),
+    value: candidates.value.filter((c) => c.detectors.includes(detector)).length,
+    ...DETECTOR_STYLES[detector],
+  }))
+);
 
 // Computed: Can proceed to next step
 const canProceed = computed(() => {
@@ -519,9 +525,11 @@ async function linkSelected() {
     for (let i = 0; i < selected.length; i += LINK_BATCH_SIZE) {
       const batch = selected.slice(i, i + LINK_BATCH_SIZE);
       const response = await api.post('/links/create-bulk', {
+        // Firefly III reads a link as "<outward> <link type inward text> <inward>",
+        // e.g. "purchase is (partially) refunded by refund", so the related transaction is inward
         links: batch.map((c) => ({
-          inwardId: c.inward.journalId,
-          outwardId: c.outward.journalId,
+          inwardId: c.related.journalId,
+          outwardId: c.original.journalId,
           linkTypeName: linkTypeByCandidate[c.id] || c.suggestedLinkType,
         })),
       });
@@ -533,7 +541,7 @@ async function linkSelected() {
       failedCount += failed.length;
       for (const link of successful) {
         const candidate = batch.find(
-          (c) => c.inward.journalId === link.inwardId && c.outward.journalId === link.outwardId
+          (c) => c.related.journalId === link.inwardId && c.original.journalId === link.outwardId
         );
         if (candidate) linkedIds.add(candidate.id);
       }
@@ -579,6 +587,16 @@ function getBreakdownItems(breakdown: LinkConfidenceBreakdown): BreakdownItem[] 
     {
       label: t('views.links.breakdown.dateProximity'),
       value: breakdown.dateProximity,
+      max: 0.1,
+    },
+    {
+      label: t('views.links.breakdown.unusualAmount'),
+      value: breakdown.unusualAmount,
+      max: 0.15,
+    },
+    {
+      label: t('views.links.breakdown.uniqueAmount'),
+      value: breakdown.uniqueAmount,
       max: 0.1,
     },
     {

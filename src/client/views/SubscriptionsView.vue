@@ -25,6 +25,7 @@
           :presets="['month', 'quarter', 'year']"
           @change="debouncedFetchCount"
           @load-more="loadMoreTransactions"
+          @refresh="preview.refresh()"
         >
           <template #options>
             <v-alert

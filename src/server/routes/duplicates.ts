@@ -172,14 +172,14 @@ router.post(
   '/count-transactions',
   validateBody(countTransactionsSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { startDate, endDate, limit, offset } = req.body as CountTransactionsBody;
+    const { startDate, endDate, limit, offset, refresh } = req.body as CountTransactionsBody;
     const sessionId = getPersistedSessionId(req);
     const cacheKey = getCacheKey(startDate, endDate);
 
     const fireflyApi = getFireflyApi();
 
     // Check cache first, fetch only if not cached
-    let transactions = getCachedTransactions(sessionId, cacheKey);
+    let transactions = refresh ? null : getCachedTransactions(sessionId, cacheKey);
     if (!transactions) {
       transactions = await fireflyApi.getAllTransactions(startDate, endDate);
       // Cache for later use in stream-find

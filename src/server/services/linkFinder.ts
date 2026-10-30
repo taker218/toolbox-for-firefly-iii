@@ -29,6 +29,8 @@ const WEIGHTS = {
   keyword: 0.2,
   dateProximity: 0.1,
   sameAccount: 0.05,
+  unusualAmount: 0.15,
+  uniqueAmount: 0.1,
 } as const;
 
 /** Normalized (umlauts transliterated) keywords indicating a refund */
@@ -47,6 +49,17 @@ const REFUND_KEYWORDS = [
   'rueckgabe',
   'reversal',
   'chargeback',
+];
+
+/** Normalized keywords indicating a reimbursement of expenses (e.g. by an employer) */
+const REIMBURSEMENT_KEYWORDS = [
+  'erstatt',
+  'auslage',
+  'spesen',
+  'reisekosten',
+  'kostenerstattung',
+  'auslagenersatz',
+  'reimburse',
 ];
 
 /** Legal forms and filler words ignored when comparing counterparties */
@@ -97,17 +110,25 @@ interface JournalInfo {
   counterpartyIban: string | null;
   assetAccountId: string;
   hasRefundKeyword: boolean;
+  hasReimbursementKeyword: boolean;
   references: Reference[];
 }
 
 interface ScoredPair {
-  inward: JournalInfo;
-  outward: JournalInfo;
+  original: JournalInfo;
+  related: JournalInfo;
   detector: LinkDetector;
+  linkType: string;
   breakdown: LinkConfidenceBreakdown;
   reasons: string[];
   isPartial: boolean;
   matchedReference?: string;
+}
+
+/** Deposits and withdrawal amounts already assigned by an amount-based detector */
+interface AmountClaims {
+  usedDeposits: Set<string>;
+  remaining: Map<string, number>;
 }
 
 export interface CreateLinkRequest {
@@ -120,7 +141,7 @@ export interface CreateLinkRequest {
 export class LinkFinder {
   private readonly fireflyApi: FireflyApiClient;
   private readonly defaultOptions: Required<LinkFinderOptions> = {
-    detectors: ['refund', 'reference'],
+    detectors: ['refund', 'reimbursement', 'reference'],
     maxDaysApart: 90,
     allowPartialAmount: true,
     minConfidence: 0.6,
@@ -175,9 +196,19 @@ export class LinkFinder {
 
     const journals = this.toJournalInfos(transactions);
     const pairs: ScoredPair[] = [];
+    // Shared so a deposit is used either as refund or as reimbursement, never both
+    const claims: AmountClaims = { usedDeposits: new Set(), remaining: new Map() };
 
     if (opts.detectors.includes('refund')) {
-      yield* this.detectRefunds(journals, opts, pairs);
+      yield* this.detectRefunds(journals, opts, claims, pairs);
+    }
+
+    if (opts.detectors.includes('reimbursement')) {
+      yield {
+        type: 'progress',
+        data: { current: 0, total: 0, message: 'Matching reimbursements...' },
+      };
+      this.detectReimbursements(journals, opts, claims, pairs);
     }
 
     if (opts.detectors.includes('reference')) {
@@ -189,7 +220,7 @@ export class LinkFinder {
     }
 
     const candidates = this.mergePairs(pairs)
-      .filter((c) => !linkedPairs.has(pairKey(c.inward.journalId, c.outward.journalId)))
+      .filter((c) => !linkedPairs.has(pairKey(c.original.journalId, c.related.journalId)))
       .filter((c) => c.matchScore >= opts.minConfidence)
       .sort((a, b) => b.matchScore - a.matchScore);
 
@@ -271,6 +302,7 @@ export class LinkFinder {
   private *detectRefunds(
     journals: JournalInfo[],
     opts: Required<LinkFinderOptions>,
+    claims: AmountClaims,
     out: ScoredPair[]
   ): Generator<StreamEvent> {
     const withdrawals = journals
@@ -302,22 +334,7 @@ export class LinkFinder {
       }
     }
 
-    // Greedy assignment, best matches first
-    scored.sort((a, b) => totalScore(b.breakdown) - totalScore(a.breakdown));
-    const usedDeposits = new Set<string>();
-    const remaining = new Map<string, number>();
-
-    for (const pair of scored) {
-      if (totalScore(pair.breakdown) < opts.minConfidence) break;
-      if (usedDeposits.has(pair.outward.journal.journalId)) continue;
-
-      const left = remaining.get(pair.inward.journal.journalId) ?? pair.inward.amount;
-      if (pair.outward.amount > left + AMOUNT_EPSILON) continue;
-
-      usedDeposits.add(pair.outward.journal.journalId);
-      remaining.set(pair.inward.journal.journalId, left - pair.outward.amount);
-      out.push(pair);
-    }
+    assignByAmount(scored, opts, claims, out);
   }
 
   private scoreRefund(
@@ -350,12 +367,97 @@ export class LinkFinder {
     this.applyCommonSignals(withdrawal, deposit, opts, breakdown, reasons);
 
     return {
-      inward: withdrawal,
-      outward: deposit,
+      original: withdrawal,
+      related: deposit,
       detector: 'refund',
+      linkType: 'Refund',
       breakdown,
       reasons,
       isPartial,
+    };
+  }
+
+  // ============ Reimbursement detection ============
+
+  /**
+   * Pairs deposits with earlier withdrawals of exactly the same amount at a different
+   * counterparty (e.g. expenses paid privately and reimbursed by the employer).
+   * As the amount is the main signal, round or ambiguous amounts require a reimbursement keyword.
+   */
+  private detectReimbursements(
+    journals: JournalInfo[],
+    opts: Required<LinkFinderOptions>,
+    claims: AmountClaims,
+    out: ScoredPair[]
+  ): void {
+    const withdrawalsByAmount = groupByAmount(journals.filter((j) => j.type === 'withdrawal'));
+    const depositsByAmount = groupByAmount(journals.filter((j) => j.type === 'deposit'));
+    const scored: ScoredPair[] = [];
+
+    for (const [key, deposits] of depositsByAmount) {
+      const withdrawals = withdrawalsByAmount.get(key) ?? [];
+      for (const deposit of deposits) {
+        const matches = withdrawals.filter(
+          (w) => w.day <= deposit.day && deposit.day - w.day <= opts.maxDaysApart
+        );
+        for (const withdrawal of matches) {
+          const competingDeposits = deposits.filter(
+            (d) => d.day >= withdrawal.day && d.day - withdrawal.day <= opts.maxDaysApart
+          );
+          const isUnique = matches.length === 1 && competingDeposits.length === 1;
+          const pair = this.scoreReimbursement(withdrawal, deposit, isUnique, opts);
+          if (pair) scored.push(pair);
+        }
+      }
+    }
+
+    assignByAmount(scored, opts, claims, out);
+  }
+
+  private scoreReimbursement(
+    withdrawal: JournalInfo,
+    deposit: JournalInfo,
+    isUnique: boolean,
+    opts: Required<LinkFinderOptions>
+  ): ScoredPair | null {
+    // Same counterparty is a refund, not a reimbursement
+    if (this.counterpartySimilarity(withdrawal, deposit) >= MIN_COUNTERPARTY_SIMILARITY) {
+      return null;
+    }
+    // Without a keyword only unique, non-round amounts are distinctive enough
+    const isUnusual = Math.round(withdrawal.amount * 100) % 100 !== 0;
+    if (!(isUnique && isUnusual) && !deposit.hasReimbursementKeyword) return null;
+
+    const breakdown = emptyBreakdown();
+    const reasons: string[] = ['Same amount'];
+    breakdown.amountMatch = WEIGHTS.exactAmount;
+
+    if (isUnusual) {
+      breakdown.unusualAmount = WEIGHTS.unusualAmount;
+      reasons.push('Unusual amount');
+    }
+    if (isUnique) {
+      breakdown.uniqueAmount = WEIGHTS.uniqueAmount;
+      reasons.push('Unique amount in time window');
+    }
+
+    this.applyCommonSignals(
+      withdrawal,
+      deposit,
+      opts,
+      breakdown,
+      reasons,
+      deposit.hasReimbursementKeyword
+    );
+
+    return {
+      original: withdrawal,
+      related: deposit,
+      detector: 'reimbursement',
+      linkType: 'Reimbursement',
+      breakdown,
+      reasons,
+      isPartial: false,
     };
   }
 
@@ -391,8 +493,8 @@ export class LinkFinder {
   }
 
   private scoreReference(
-    inward: JournalInfo,
-    outward: JournalInfo,
+    original: JournalInfo,
+    related: JournalInfo,
     reference: Reference,
     opts: Required<LinkFinderOptions>
   ): ScoredPair {
@@ -401,29 +503,30 @@ export class LinkFinder {
     breakdown.referenceMatch = WEIGHTS.reference[reference.kind];
 
     let isPartial = false;
-    if (inward.currency === outward.currency) {
-      if (Math.abs(inward.amount - outward.amount) <= AMOUNT_EPSILON) {
+    if (original.currency === related.currency) {
+      if (Math.abs(original.amount - related.amount) <= AMOUNT_EPSILON) {
         breakdown.amountMatch = WEIGHTS.exactAmount;
         reasons.push('Same amount');
-      } else if (opts.allowPartialAmount && outward.amount < inward.amount) {
+      } else if (opts.allowPartialAmount && related.amount < original.amount) {
         breakdown.amountMatch = WEIGHTS.partialAmount;
         reasons.push('Partial amount');
         isPartial = true;
       }
     }
 
-    const similarity = this.counterpartySimilarity(inward, outward);
+    const similarity = this.counterpartySimilarity(original, related);
     if (similarity >= MIN_COUNTERPARTY_SIMILARITY) {
       breakdown.counterpartyMatch = WEIGHTS.counterparty * similarity;
       reasons.push(similarity === 1 ? 'Same counterparty' : 'Similar counterparty');
     }
 
-    this.applyCommonSignals(inward, outward, opts, breakdown, reasons);
+    this.applyCommonSignals(original, related, opts, breakdown, reasons);
 
     return {
-      inward,
-      outward,
+      original,
+      related,
       detector: 'reference',
+      linkType: suggestLinkType(original, related),
       breakdown,
       reasons,
       isPartial,
@@ -443,24 +546,25 @@ export class LinkFinder {
   // ============ Shared scoring ============
 
   private applyCommonSignals(
-    inward: JournalInfo,
-    outward: JournalInfo,
+    original: JournalInfo,
+    related: JournalInfo,
     opts: Required<LinkFinderOptions>,
     breakdown: LinkConfidenceBreakdown,
-    reasons: string[]
+    reasons: string[],
+    hasKeyword: boolean = related.hasRefundKeyword
   ): void {
-    if (outward.hasRefundKeyword) {
+    if (hasKeyword) {
       breakdown.keywordMatch = WEIGHTS.keyword;
-      reasons.push('Refund keyword');
+      reasons.push('Keyword');
     }
 
-    const daysApart = Math.abs(outward.day - inward.day);
+    const daysApart = Math.abs(related.day - original.day);
     if (daysApart <= opts.maxDaysApart) {
       breakdown.dateProximity = WEIGHTS.dateProximity * (1 - daysApart / (opts.maxDaysApart + 1));
       reasons.push(`${daysApart} day(s) apart`);
     }
 
-    if (inward.assetAccountId && inward.assetAccountId === outward.assetAccountId) {
+    if (original.assetAccountId && original.assetAccountId === related.assetAccountId) {
       breakdown.sameAccount = WEIGHTS.sameAccount;
       reasons.push('Same account');
     }
@@ -470,16 +574,16 @@ export class LinkFinder {
     const merged = new Map<string, LinkCandidate>();
 
     for (const pair of pairs) {
-      const key = pairKey(pair.inward.journal.journalId, pair.outward.journal.journalId);
+      const key = pairKey(pair.original.journal.journalId, pair.related.journal.journalId);
       const existing = merged.get(key);
 
       if (!existing) {
         merged.set(key, {
           id: uuidv4(),
           detectors: [pair.detector],
-          inward: pair.inward.journal,
-          outward: pair.outward.journal,
-          suggestedLinkType: suggestLinkType(pair.inward, pair.outward),
+          original: pair.original.journal,
+          related: pair.related.journal,
+          suggestedLinkType: pair.linkType,
           isPartial: pair.isPartial,
           matchedReference: pair.matchedReference,
           matchScore: totalScore(pair.breakdown),
@@ -490,6 +594,8 @@ export class LinkFinder {
       }
 
       if (!existing.detectors.includes(pair.detector)) existing.detectors.push(pair.detector);
+      // Prefer the more specific link type (e.g. "Reimbursement" over a reference's "Related")
+      if (existing.suggestedLinkType === 'Related') existing.suggestedLinkType = pair.linkType;
       existing.matchedReference ??= pair.matchedReference;
       existing.matchReasons = [...new Set([...existing.matchReasons, ...pair.reasons])];
       for (const field of Object.keys(pair.breakdown) as (keyof LinkConfidenceBreakdown)[]) {
@@ -531,6 +637,7 @@ export class LinkFinder {
           counterpartyIban: normalizeIban(isDeposit ? split.source_iban : split.destination_iban),
           assetAccountId: isDeposit ? split.destination_id : split.source_id,
           hasRefundKeyword: REFUND_KEYWORDS.some((k) => text.includes(k)),
+          hasReimbursementKeyword: REIMBURSEMENT_KEYWORDS.some((k) => text.includes(k)),
           references: extractReferences(split),
         });
       }
@@ -570,7 +677,45 @@ function emptyBreakdown(): LinkConfidenceBreakdown {
     keywordMatch: 0,
     dateProximity: 0,
     sameAccount: 0,
+    unusualAmount: 0,
+    uniqueAmount: 0,
   };
+}
+
+/**
+ * Greedy assignment, best matches first: each deposit is used once and the deposits linked
+ * to a withdrawal may not exceed its amount (allows several partial refunds).
+ */
+function assignByAmount(
+  scored: ScoredPair[],
+  opts: Required<LinkFinderOptions>,
+  claims: AmountClaims,
+  out: ScoredPair[]
+): void {
+  scored.sort((a, b) => totalScore(b.breakdown) - totalScore(a.breakdown));
+
+  for (const pair of scored) {
+    if (totalScore(pair.breakdown) < opts.minConfidence) break;
+    if (claims.usedDeposits.has(pair.related.journal.journalId)) continue;
+
+    const left = claims.remaining.get(pair.original.journal.journalId) ?? pair.original.amount;
+    if (pair.related.amount > left + AMOUNT_EPSILON) continue;
+
+    claims.usedDeposits.add(pair.related.journal.journalId);
+    claims.remaining.set(pair.original.journal.journalId, left - pair.related.amount);
+    out.push(pair);
+  }
+}
+
+function groupByAmount(journals: JournalInfo[]): Map<string, JournalInfo[]> {
+  const groups = new Map<string, JournalInfo[]>();
+  for (const journal of journals) {
+    const key = `${journal.currency}:${Math.round(journal.amount * 100)}`;
+    const group = groups.get(key) ?? [];
+    group.push(journal);
+    groups.set(key, group);
+  }
+  return groups;
 }
 
 function totalScore(breakdown: LinkConfidenceBreakdown): number {
@@ -578,8 +723,8 @@ function totalScore(breakdown: LinkConfidenceBreakdown): number {
   return Math.min(1, sum);
 }
 
-function suggestLinkType(inward: JournalInfo, outward: JournalInfo): string {
-  return inward.type === 'withdrawal' && outward.type === 'deposit' ? 'Refund' : 'Related';
+function suggestLinkType(original: JournalInfo, related: JournalInfo): string {
+  return original.type === 'withdrawal' && related.type === 'deposit' ? 'Refund' : 'Related';
 }
 
 /** Calendar day index (ignores time of day and timezone offsets) */

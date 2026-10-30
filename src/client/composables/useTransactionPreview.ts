@@ -15,6 +15,8 @@ export interface TransactionPreviewState {
   fetchCount: (endpoint: string, params: Record<string, unknown>) => Promise<void>;
   /** Load more transactions for preview */
   loadMore: (endpoint: string, params: Record<string, unknown>) => Promise<void>;
+  /** Re-run the last fetchCount, bypassing client and server caches */
+  refresh: () => Promise<void>;
   /** Clear cache and reset state */
   reset: () => void;
   /** Get cache key for given params */
@@ -40,11 +42,15 @@ export function useTransactionPreview(): TransactionPreviewState {
   // Cache keyed by params
   const cache = new Map<string, CacheEntry>();
 
+  // Last fetchCount call, used by refresh()
+  let lastRequest: { endpoint: string; params: Record<string, unknown> } | null = null;
+
   function getCacheKey(startDate?: string, endDate?: string, extra?: string): string {
     return `${startDate || ''}-${endDate || ''}-${extra || ''}`;
   }
 
   async function fetchCount(endpoint: string, params: Record<string, unknown>): Promise<void> {
+    lastRequest = { endpoint, params };
     const cacheKey = getCacheKey(
       params.startDate as string | undefined,
       params.endDate as string | undefined,
@@ -117,7 +123,19 @@ export function useTransactionPreview(): TransactionPreviewState {
     }
   }
 
+  async function refresh(): Promise<void> {
+    if (!lastRequest || fetching.value) return;
+
+    cache.clear();
+    transactions.value = [];
+    const { endpoint, params } = lastRequest;
+    await fetchCount(endpoint, { ...params, refresh: true });
+    // Keep the flag out of later loadMore/refresh calls
+    lastRequest = { endpoint, params };
+  }
+
   function reset(): void {
+    lastRequest = null;
     cache.clear();
     count.value = null;
     transactions.value = [];
@@ -132,6 +150,7 @@ export function useTransactionPreview(): TransactionPreviewState {
     loadingMore,
     fetchCount,
     loadMore,
+    refresh,
     reset,
     getCacheKey,
   };

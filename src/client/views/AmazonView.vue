@@ -121,6 +121,7 @@
           :loading-text="t('views.amazon.loadingText')"
           @change="debouncedFetchTransactions"
           @load-more="loadMoreTransactions"
+          @refresh="preview.refresh()"
         >
           <template #options>
             <v-checkbox

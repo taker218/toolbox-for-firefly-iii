@@ -442,6 +442,7 @@
       },
       "detectors": {
         "refund": "Refund",
+        "reimbursement": "Reimbursement",
         "reference": "Shared reference"
       },
       "partial": "Partial",
@@ -459,9 +460,11 @@
       "breakdown": {
         "referenceMatch": "Shared Reference",
         "counterpartyMatch": "Counterparty",
-        "keywordMatch": "Refund Keyword",
+        "keywordMatch": "Keyword",
         "dateProximity": "Time Gap",
-        "sameAccount": "Same Account"
+        "sameAccount": "Same Account",
+        "unusualAmount": "Unusual Amount",
+        "uniqueAmount": "Unique Amount"
       }
     },
     "amazon": {
@@ -716,7 +719,8 @@
       "noTransactions": "No transactions to preview",
       "selectDateRange": "Select a date range to load transactions",
       "loadingMore": "Loading more...",
-      "fromTo": "From → To"
+      "fromTo": "From → To",
+      "refresh": "Reload from Firefly III"
     },
     "dateRangeFilter": {
       "showFilters": "More filters",

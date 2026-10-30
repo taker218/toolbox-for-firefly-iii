@@ -64,6 +64,8 @@ export const countTransactionsSchema = z.object({
   filters: transactionFiltersSchema.optional(),
   limit: z.number().int().positive().max(100).optional(),
   offset: z.number().int().nonnegative().optional(),
+  /** Bypass the server-side transaction cache and fetch fresh data from Firefly III */
+  refresh: z.boolean().optional(),
 });
 
 // =============================================================================
@@ -430,7 +432,7 @@ export const bulkDeleteSchema = z.object({
  */
 const linkFinderOptionsSchema = z.object({
   detectors: z
-    .array(z.enum(['refund', 'reference']))
+    .array(z.enum(['refund', 'reimbursement', 'reference']))
     .min(1, 'At least one detector is required')
     .optional(),
   maxDaysApart: z.number().int().positive().max(365).optional(),

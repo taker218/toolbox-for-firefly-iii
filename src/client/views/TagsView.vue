@@ -46,6 +46,7 @@
           :available-categories="filterOptions.categories.value"
           @change="debouncedFetchCount"
           @load-more="loadMoreTransactions"
+          @refresh="preview.refresh()"
         />
       </template>
 

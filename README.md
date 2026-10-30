@@ -65,7 +65,7 @@ Detects recurring payment patterns (weekly, monthly, quarterly, annual) based on
 
 ### Link Finder
 
-Finds related transactions and links them in Firefly III (shown as "Find Relations" in the UI). Detects refunds, including partial refunds, by matching later deposits from the same counterparty against earlier withdrawals, and transactions sharing a reference (SEPA end-to-end ID, external ID, Amazon order number, PayPal transaction ID or invoice number). Already linked pairs are skipped; the link type can be changed per match before linking.
+Finds related transactions and links them in Firefly III (shown as "Find Relations" in the UI). Detects refunds, including partial refunds, by matching later deposits from the same counterparty against earlier withdrawals, reimbursements of expenses by a different counterparty (e.g. an employer) based on an exact, distinctive amount or a reimbursement keyword, and transactions sharing a reference (SEPA end-to-end ID, external ID, Amazon order number, PayPal transaction ID or invoice number). Already linked pairs are skipped; the link type can be changed per match before linking.
 
 ### AI Category Suggestions
 

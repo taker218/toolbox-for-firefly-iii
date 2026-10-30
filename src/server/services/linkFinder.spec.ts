@@ -168,8 +168,8 @@ describe('LinkFinder', () => {
       const result = await finder.findLinks();
 
       expect(result).toHaveLength(1);
-      expect(result[0].inward.journalId).toBe('1');
-      expect(result[0].outward.journalId).toBe('2');
+      expect(result[0].original.journalId).toBe('1');
+      expect(result[0].related.journalId).toBe('2');
       expect(result[0].suggestedLinkType).toBe('Refund');
       expect(result[0].isPartial).toBe(false);
       expect(result[0].detectors).toEqual(['refund']);
@@ -211,7 +211,7 @@ describe('LinkFinder', () => {
 
       expect(result).toHaveLength(1);
       // The closer refund scores higher and wins
-      expect(result[0].outward.journalId).toBe('2');
+      expect(result[0].related.journalId).toBe('2');
     });
 
     it('should allow several partial refunds up to the original amount', async () => {
@@ -223,7 +223,7 @@ describe('LinkFinder', () => {
 
       const result = await finder.findLinks();
 
-      expect(result.map((c) => c.outward.journalId).sort()).toEqual(['2', '3']);
+      expect(result.map((c) => c.related.journalId).sort()).toEqual(['2', '3']);
     });
 
     it('should link each deposit to only one withdrawal', async () => {
@@ -236,7 +236,7 @@ describe('LinkFinder', () => {
       const result = await finder.findLinks();
 
       expect(result).toHaveLength(1);
-      expect(result[0].inward.journalId).toBe('2');
+      expect(result[0].original.journalId).toBe('2');
     });
 
     it('should ignore deposits before the withdrawal', async () => {
@@ -267,7 +267,8 @@ describe('LinkFinder', () => {
         deposit('2', '2024-03-10', '49.99', 'Arbeitgeber AG', { description: 'Erstattung' }),
       ]);
 
-      const result = await finder.findLinks();
+      // A different counterparty is a reimbursement, covered by its own detector
+      const result = await finder.findLinks(undefined, undefined, { detectors: ['refund'] });
 
       expect(result).toHaveLength(0);
     });
@@ -315,6 +316,106 @@ describe('LinkFinder', () => {
 
       expect(await finder.findLinks()).toHaveLength(1);
       expect(await finder.findLinks(undefined, undefined, { minConfidence: 0.95 })).toHaveLength(0);
+    });
+  });
+
+  describe('reimbursement detection', () => {
+    it('should link an expense reimbursed by a different counterparty', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('1', '2024-03-01', '63.47', 'Aral Tankstelle'),
+        deposit('2', '2024-03-21', '63.47', 'Musterfirma GmbH', { description: 'RNR 1042' }),
+      ]);
+
+      const result = await finder.findLinks();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].detectors).toEqual(['reimbursement']);
+      expect(result[0].suggestedLinkType).toBe('Reimbursement');
+      expect(result[0].original.journalId).toBe('1');
+      expect(result[0].related.journalId).toBe('2');
+      expect(result[0].confidenceBreakdown.unusualAmount).toBeGreaterThan(0);
+      expect(result[0].confidenceBreakdown.uniqueAmount).toBeGreaterThan(0);
+    });
+
+    it('should require a keyword for round amounts', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('1', '2024-03-01', '50.00', 'Aral Tankstelle'),
+        deposit('2', '2024-03-02', '50.00', 'Musterfirma GmbH'),
+      ]);
+
+      expect(await finder.findLinks()).toHaveLength(0);
+    });
+
+    it('should accept round amounts with a reimbursement keyword', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('1', '2024-03-01', '50.00', 'Deutsche Bahn'),
+        deposit('2', '2024-03-15', '50.00', 'Musterfirma GmbH', {
+          description: 'Reisekostenabrechnung 03/2024',
+        }),
+      ]);
+
+      const result = await finder.findLinks();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].detectors).toEqual(['reimbursement']);
+    });
+
+    it('should skip ambiguous amounts without a keyword', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('1', '2024-03-01', '63.47', 'Aral Tankstelle'),
+        withdrawal('2', '2024-03-05', '63.47', 'Shell'),
+        deposit('3', '2024-03-21', '63.47', 'Musterfirma GmbH'),
+      ]);
+
+      expect(await finder.findLinks()).toHaveLength(0);
+    });
+
+    it('should not match different amounts', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('1', '2024-03-01', '63.47', 'Aral Tankstelle'),
+        deposit('2', '2024-03-21', '63.48', 'Musterfirma GmbH', { description: 'Auslagen' }),
+      ]);
+
+      expect(await finder.findLinks()).toHaveLength(0);
+    });
+
+    it('should leave same-counterparty pairs to refund detection', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('1', '2024-03-01', '63.47', 'Zalando'),
+        deposit('2', '2024-03-10', '63.47', 'Zalando'),
+      ]);
+
+      const result = await finder.findLinks();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].detectors).toEqual(['refund']);
+    });
+
+    it('should not reuse a deposit already assigned as refund', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('1', '2024-03-01', '63.47', 'Zalando'),
+        withdrawal('2', '2024-03-02', '63.47', 'Aral Tankstelle'),
+        deposit('3', '2024-03-10', '63.47', 'Zalando', { description: 'Erstattung' }),
+      ]);
+
+      const result = await finder.findLinks();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].detectors).toEqual(['refund']);
+      expect(result[0].original.journalId).toBe('1');
+    });
+
+    it('should not detect reimbursements when disabled', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('1', '2024-03-01', '63.47', 'Aral Tankstelle'),
+        deposit('2', '2024-03-21', '63.47', 'Musterfirma GmbH'),
+      ]);
+
+      const result = await finder.findLinks(undefined, undefined, {
+        detectors: ['refund', 'reference'],
+      });
+
+      expect(result).toHaveLength(0);
     });
   });
 
@@ -414,8 +515,8 @@ describe('LinkFinder', () => {
       const result = await finder.findLinks();
 
       expect(result).toHaveLength(1);
-      expect(result[0].inward.transactionId).toBe('10');
-      expect(result[0].inward.journalId).toBe('11');
+      expect(result[0].original.transactionId).toBe('10');
+      expect(result[0].original.journalId).toBe('11');
     });
   });
 
@@ -427,8 +528,8 @@ describe('LinkFinder', () => {
           type: 'link_types',
           attributes: {
             name: 'Refund',
-            inward: 'is refunded by',
-            outward: 'refunds',
+            original: 'is refunded by',
+            related: 'refunds',
             editable: false,
           },
         },

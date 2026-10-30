@@ -45,6 +45,7 @@
           :available-tags="filterOptions.tags.value"
           @change="debouncedFetchCount"
           @load-more="loadMoreTransactions"
+          @refresh="preview.refresh()"
         />
       </template>
 
