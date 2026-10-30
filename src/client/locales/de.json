@@ -266,6 +266,7 @@
     "dashboard": "Dashboard",
     "duplicates": "Duplikatfinder",
     "subscriptions": "Abonnementfinder",
+    "links": "Zusammenhänge finden",
     "categories": "KI-Kategorievorschläge",
     "tags": "KI-Tag-Vorschläge",
     "amazon": "Amazon-Bestellerweiterung",
@@ -276,6 +277,7 @@
     "overview": "Übersicht",
     "findDuplicates": "Duplikate finden",
     "trackRecurringExpenses": "Wiederkehrende Ausgaben verfolgen",
+    "findRelatedTransactions": "Zusammengehörige Buchungen",
     "smartSuggestions": "Intelligente Vorschläge",
     "tagSuggestions": "Tag-Vorschläge",
     "orderDetails": "Bestelldetails",
@@ -293,6 +295,7 @@
       "toolDescriptions": {
         "duplicateFinder": "Scannen Sie Ihre Transaktionen nach potenziellen Duplikaten und verwalten Sie diese einfach.",
         "subscriptionFinder": "Erkennen Sie wiederkehrende Transaktionsmuster und erstellen Sie wiederkehrende Transaktionen.",
+        "linkFinder": "Findet Erstattungen und Buchungen mit gemeinsamer Referenz und verknüpft sie in Firefly III.",
         "aiCategories": "Erhalten Sie intelligente Kategorievorschläge für nicht kategorisierte Transaktionen mithilfe von KI.",
         "aiTags": "Erhalten Sie intelligente Tag-Empfehlungen basierend auf dem Transaktionsinhalt.",
         "amazonExtender": "Ordnen Sie Amazon-Transaktionen mit Bestelldetails zu für bessere Beschreibungen.",
@@ -420,6 +423,46 @@
       "subscriptionAndRuleCreated": "Abonnement und zugehörige Regel erfolgreich erstellt",
       "subscriptionCreated": "Abonnement erfolgreich erstellt",
       "failedToCreateSubscription": "Fehler beim Erstellen des Abonnements"
+    },
+    "links": {
+      "steps": {
+        "findReview": {
+          "subtitle": "Zusammenhänge prüfen und verknüpfen"
+        }
+      },
+      "clickToScan": "Klicke auf 'Zusammenhänge finden', um nach zusammengehörigen Buchungen zu suchen",
+      "noLinksFound": "Keine Zusammenhänge gefunden",
+      "noLinksFoundSubtitle": "In diesem Zeitraum wurden keine unverknüpften zusammengehörigen Buchungen gefunden.",
+      "selectDetector": "Wähle mindestens eine Erkennungsart",
+      "options": {
+        "detectors": "Erkennungsarten",
+        "maxDaysApart": "Max. Tage zwischen Buchungen",
+        "minConfidence": "Min. Konfidenz",
+        "allowPartialAmount": "Teilerstattungen erkennen"
+      },
+      "detectors": {
+        "refund": "Erstattung",
+        "reference": "Gemeinsame Referenz"
+      },
+      "partial": "Teilbetrag",
+      "original": "Ursprüngliche Buchung",
+      "related": "Zugehörige Buchung",
+      "linkType": "Verknüpfungstyp",
+      "linkSelected": "Ausgewählte verknüpfen",
+      "dismiss": "Verwerfen (kein Zusammenhang)",
+      "foundLinks": "{count} mögliche Zusammenhänge gefunden",
+      "failedToFind": "Suche nach Zusammenhängen fehlgeschlagen",
+      "failedToLoadLinkTypes": "Verknüpfungstypen konnten nicht geladen werden",
+      "failedToLink": "Verknüpfen fehlgeschlagen",
+      "linkedCount": "{count} Buchungspaar(e) verknüpft",
+      "linkFailedCount": "{count} Verknüpfung(en) konnten nicht angelegt werden",
+      "breakdown": {
+        "referenceMatch": "Gemeinsame Referenz",
+        "counterpartyMatch": "Gegenkonto",
+        "keywordMatch": "Erstattungs-Stichwort",
+        "dateProximity": "Zeitabstand",
+        "sameAccount": "Gleiches Konto"
+      }
     },
     "amazon": {
       "steps": {

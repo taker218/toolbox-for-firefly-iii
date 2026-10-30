@@ -1,6 +1,7 @@
 // Business logic services
 export { DuplicateTransactionFinder } from './duplicateFinder.js';
 export { SubscriptionFinder } from './subscriptionFinder.js';
+export { LinkFinder } from './linkFinder.js';
 export { AISuggestionService } from './aiSuggestions.js';
 export { AmazonOrderExtender } from './amazonExtender.js';
 export { PayPalExtender } from './paypalExtender.js';

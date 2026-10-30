@@ -29,6 +29,7 @@ Web automation suite for [Firefly III](https://firefly-iii.org). Includes tools 
   - [Features](#features)
     - [Duplicate Finder](#duplicate-finder)
     - [Subscription Finder](#subscription-finder)
+    - [Link Finder](#link-finder)
     - [AI Category Suggestions](#ai-category-suggestions)
     - [AI Tag Suggestions](#ai-tag-suggestions)
     - [Amazon Order Extender](#amazon-order-extender)
@@ -61,6 +62,10 @@ Identifies potential duplicates by comparing amounts, dates, and descriptions. G
 ### Subscription Finder
 
 Detects recurring payment patterns (weekly, monthly, quarterly, annual) based on amounts, merchants, and timing. Convert detected patterns into Firefly III recurring transactions.
+
+### Link Finder
+
+Finds related transactions and links them in Firefly III (shown as "Find Relations" in the UI). Detects refunds, including partial refunds, by matching later deposits from the same counterparty against earlier withdrawals, and transactions sharing a reference (SEPA end-to-end ID, external ID, Amazon order number, PayPal transaction ID or invoice number). Already linked pairs are skipped; the link type can be changed per match before linking.
 
 ### AI Category Suggestions
 

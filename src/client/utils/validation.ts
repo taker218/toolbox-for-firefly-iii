@@ -246,6 +246,42 @@ export const DuplicateGroupSchema = z.object({
 export type ValidatedDuplicateGroup = z.infer<typeof DuplicateGroupSchema>;
 
 /**
+ * Confidence breakdown for link detection
+ */
+export const LinkConfidenceBreakdownSchema = z.object({
+  referenceMatch: z.number(),
+  amountMatch: z.number(),
+  counterpartyMatch: z.number(),
+  keywordMatch: z.number(),
+  dateProximity: z.number(),
+  sameAccount: z.number(),
+});
+
+const LinkedJournalSchema = z.object({
+  transactionId: z.string(),
+  journalId: z.string(),
+  split: FireflyTransactionSplitSchema,
+});
+
+/**
+ * Link candidate from stream
+ */
+export const LinkCandidateSchema = z.object({
+  id: z.string(),
+  detectors: z.array(z.enum(['refund', 'reference'])),
+  inward: LinkedJournalSchema,
+  outward: LinkedJournalSchema,
+  suggestedLinkType: z.string(),
+  isPartial: z.boolean(),
+  matchedReference: z.string().optional(),
+  matchScore: z.number(),
+  matchReasons: z.array(z.string()),
+  confidenceBreakdown: LinkConfidenceBreakdownSchema,
+});
+
+export type ValidatedLinkCandidate = z.infer<typeof LinkCandidateSchema>;
+
+/**
  * Subscription pattern confidence breakdown
  */
 export const SubscriptionConfidenceBreakdownSchema = z.object({

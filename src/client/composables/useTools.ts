@@ -74,6 +74,16 @@ export const TOOL_UI_CONFIG: Record<string, ToolUIConfig> = {
     route: '/subscriptions',
     requiresAI: false,
   },
+  linkFinder: {
+    id: 'linkFinder',
+    titleKey: 'navigation.links',
+    subtitleKey: 'navigation.findRelatedTransactions',
+    descriptionKey: 'views.home.toolDescriptions.linkFinder',
+    icon: 'mdi-link-variant',
+    color: 'deep-orange',
+    route: '/links',
+    requiresAI: false,
+  },
   aiCategorySuggestions: {
     id: 'aiCategorySuggestions',
     titleKey: 'navigation.categories',
@@ -140,6 +150,7 @@ export const TOOL_UI_CONFIG: Record<string, ToolUIConfig> = {
 const TOOL_ORDER = [
   'duplicateFinder',
   'subscriptionFinder',
+  'linkFinder',
   'aiCategorySuggestions',
   'aiTagSuggestions',
   'amazonExtender',

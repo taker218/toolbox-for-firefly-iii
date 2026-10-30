@@ -266,6 +266,7 @@
     "dashboard": "Dashboard",
     "duplicates": "Duplicate Finder",
     "subscriptions": "Subscription Finder",
+    "links": "Find Relations",
     "categories": "AI Category Suggestions",
     "tags": "AI Tag Suggestions",
     "amazon": "Amazon Order Extender",
@@ -276,6 +277,7 @@
     "overview": "Overview",
     "findDuplicates": "Find duplicates",
     "trackRecurringExpenses": "Track recurring expenses",
+    "findRelatedTransactions": "Find related transactions",
     "smartSuggestions": "Smart suggestions",
     "tagSuggestions": "Tag suggestions",
     "orderDetails": "Order details",
@@ -293,6 +295,7 @@
       "toolDescriptions": {
         "duplicateFinder": "Scan your transactions for potential duplicates and manage them easily.",
         "subscriptionFinder": "Detect recurring transaction patterns and create recurring transactions.",
+        "linkFinder": "Find refunds and transactions sharing a reference and link them in Firefly III.",
         "aiCategories": "Get smart category suggestions for uncategorized transactions using AI.",
         "aiTags": "Receive intelligent tag recommendations based on transaction content.",
         "amazonExtender": "Match Amazon transactions with order details for better descriptions.",
@@ -420,6 +423,46 @@
       "subscriptionAndRuleCreated": "Subscription and matching rule created successfully",
       "subscriptionCreated": "Subscription created successfully",
       "failedToCreateSubscription": "Failed to create subscription"
+    },
+    "links": {
+      "steps": {
+        "findReview": {
+          "subtitle": "Review and link related transactions"
+        }
+      },
+      "clickToScan": "Click 'Find Relations' to search for related transactions",
+      "noLinksFound": "No relations found",
+      "noLinksFoundSubtitle": "No unlinked related transactions were found in this date range.",
+      "selectDetector": "Select at least one detection type",
+      "options": {
+        "detectors": "Detection types",
+        "maxDaysApart": "Max. days between transactions",
+        "minConfidence": "Min. confidence",
+        "allowPartialAmount": "Detect partial refunds"
+      },
+      "detectors": {
+        "refund": "Refund",
+        "reference": "Shared reference"
+      },
+      "partial": "Partial",
+      "original": "Original transaction",
+      "related": "Related transaction",
+      "linkType": "Link type",
+      "linkSelected": "Link Selected",
+      "dismiss": "Dismiss (not related)",
+      "foundLinks": "Found {count} possible relations",
+      "failedToFind": "Failed to find relations",
+      "failedToLoadLinkTypes": "Failed to load link types",
+      "failedToLink": "Failed to link transactions",
+      "linkedCount": "Linked {count} transaction pair(s)",
+      "linkFailedCount": "{count} link(s) could not be created",
+      "breakdown": {
+        "referenceMatch": "Shared Reference",
+        "counterpartyMatch": "Counterparty",
+        "keywordMatch": "Refund Keyword",
+        "dateProximity": "Time Gap",
+        "sameAccount": "Same Account"
+      }
     },
     "amazon": {
       "steps": {

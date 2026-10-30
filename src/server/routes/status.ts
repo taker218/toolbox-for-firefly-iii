@@ -111,6 +111,12 @@ router.get('/tools', (_req: Request, res: Response) => {
       description: 'Detect recurring transaction patterns',
     },
     {
+      name: 'linkFinder',
+      available: isFireflyConfigured(),
+      requiresConfig: ['FIREFLY_API_URL', 'FIREFLY_API_TOKEN'],
+      description: 'Find related transactions (refunds, shared references) and link them',
+    },
+    {
       name: 'aiCategorySuggestions',
       available: isFireflyConfigured() && isAIConfigured(),
       requiresConfig: ['FIREFLY_API_URL', 'FIREFLY_API_TOKEN', 'AI_PROVIDER'],

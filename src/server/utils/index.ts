@@ -37,6 +37,9 @@ export {
   // Duplicate schemas
   duplicateFindSchema,
   bulkDeleteSchema,
+  // Link finder schemas
+  linkFindSchema,
+  bulkLinkSchema,
   // Suggestion schemas
   suggestionRequestSchema,
   applySuggestionsSchema,
@@ -67,6 +70,9 @@ export type {
   // Duplicate types
   DuplicateFindBody,
   BulkDeleteBody,
+  // Link finder types
+  LinkFindBody,
+  BulkLinkBody,
   // Suggestion types
   SuggestionRequestBody,
   ApplySuggestionsBody,

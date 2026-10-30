@@ -29,6 +29,56 @@ export interface DuplicateFinderOptions {
   includeDestinationMatch?: boolean;
 }
 
+// Link Finder Types (finds related transactions to link in Firefly III)
+export type LinkDetector = 'refund' | 'reference';
+
+export interface LinkConfidenceBreakdown {
+  referenceMatch: number; // 40% max weight - shared reference ID
+  amountMatch: number; // 35% max weight - same amount or partial amount
+  counterpartyMatch: number; // 30% max weight - same merchant/counterparty
+  keywordMatch: number; // 20% max weight - refund keywords in description/notes
+  dateProximity: number; // 10% max weight - shorter gap scores higher
+  sameAccount: number; // 5% max weight - same asset account
+}
+
+export interface LinkedJournal {
+  /** Transaction group ID */
+  transactionId: string;
+  /** Journal ID (used for Firefly III links) */
+  journalId: string;
+  split: FireflyTransactionSplit;
+}
+
+export interface LinkCandidate {
+  id: string;
+  detectors: LinkDetector[];
+  /** The original transaction (e.g. the purchase) */
+  inward: LinkedJournal;
+  /** The related transaction (e.g. the refund) */
+  outward: LinkedJournal;
+  /** Suggested Firefly III link type name */
+  suggestedLinkType: string;
+  isPartial: boolean;
+  matchedReference?: string;
+  matchScore: number;
+  matchReasons: string[];
+  confidenceBreakdown: LinkConfidenceBreakdown;
+}
+
+export interface LinkFinderOptions {
+  detectors?: LinkDetector[];
+  maxDaysApart?: number;
+  allowPartialAmount?: boolean;
+  minConfidence?: number;
+}
+
+export interface LinkTypeInfo {
+  id: string;
+  name: string;
+  inward: string;
+  outward: string;
+}
+
 // Subscription Finder Types (finds patterns to create Firefly subscriptions)
 export interface SubscriptionConfidenceBreakdown {
   intervalConsistency: number; // 50% max weight - how consistent the timing is

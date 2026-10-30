@@ -11,6 +11,8 @@ import type {
   FireflySubscription,
   FireflyRule,
   FireflyRuleGroup,
+  FireflyLinkType,
+  FireflyTransactionLink,
   FireflyApiResponse,
 } from '../../shared/types/firefly.js';
 
@@ -634,6 +636,67 @@ export class FireflyApiClient {
     } catch (error) {
       this.handleError(error);
     }
+  }
+
+  // ============ Transaction Links ============
+
+  async getAllLinkTypes(): Promise<FireflyLinkType[]> {
+    return this.getAllPages<FireflyLinkType>('/link-types');
+  }
+
+  async getAllTransactionLinks(): Promise<FireflyTransactionLink[]> {
+    return this.getAllPages<FireflyTransactionLink>('/transaction-links');
+  }
+
+  /**
+   * Link two transaction journals. Both IDs are journal IDs, not transaction group IDs.
+   */
+  async createTransactionLink(data: {
+    linkTypeId: string;
+    inwardId: string;
+    outwardId: string;
+    notes?: string;
+  }): Promise<FireflyTransactionLink> {
+    try {
+      const response = await this.client.post<FireflyApiResponse<FireflyTransactionLink>>(
+        '/transaction-links',
+        {
+          link_type_id: data.linkTypeId,
+          inward_id: data.inwardId,
+          outward_id: data.outwardId,
+          notes: data.notes,
+        }
+      );
+      return response.data.data;
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
+  private async getAllPages<T>(path: string): Promise<T[]> {
+    const items: T[] = [];
+    let page = 1;
+    let hasMore = true;
+
+    try {
+      while (hasMore) {
+        const response = await this.client.get<FireflyApiResponse<T[]>>(path, {
+          params: { page, limit: 100 },
+        });
+        items.push(...response.data.data);
+
+        const pagination = response.data.meta?.pagination;
+        if (pagination && pagination.current_page < pagination.total_pages) {
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+    } catch (error) {
+      this.handleError(error);
+    }
+
+    return items;
   }
 
   // ============ Health Check ============

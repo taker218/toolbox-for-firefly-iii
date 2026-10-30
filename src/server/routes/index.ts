@@ -4,6 +4,7 @@ import authRoutes from './auth.js';
 import statusRoutes from './status.js';
 import duplicatesRoutes from './duplicates.js';
 import subscriptionsRoutes from './subscriptions.js';
+import linksRoutes from './links.js';
 import suggestionsRoutes from './suggestions.js';
 import amazonRoutes from './amazon.js';
 import paypalRoutes from './paypal.js';
@@ -22,6 +23,7 @@ router.use('/', statusRoutes);
 // Protected routes (require authentication if auth is configured)
 router.use('/duplicates', requireAuth, duplicatesRoutes);
 router.use('/subscriptions', requireAuth, subscriptionsRoutes);
+router.use('/links', requireAuth, linksRoutes);
 router.use('/suggestions', requireAuth, suggestionsRoutes);
 router.use('/amazon', requireAuth, amazonRoutes);
 router.use('/paypal', requireAuth, paypalRoutes);

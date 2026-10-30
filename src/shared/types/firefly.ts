@@ -305,6 +305,31 @@ export interface FireflyRule {
   };
 }
 
+export interface FireflyLinkType {
+  id: string;
+  type: string;
+  attributes: {
+    name: string;
+    inward: string;
+    outward: string;
+    editable: boolean;
+  };
+}
+
+export interface FireflyTransactionLink {
+  id: string;
+  type: string;
+  attributes: {
+    link_type_id: string;
+    link_type_name?: string;
+    /** Journal ID (not transaction group ID) */
+    inward_id: string;
+    /** Journal ID (not transaction group ID) */
+    outward_id: string;
+    notes: string | null;
+  };
+}
+
 export interface FireflyApiResponse<T> {
   data: T;
   meta?: {

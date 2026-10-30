@@ -422,6 +422,49 @@ export const bulkDeleteSchema = z.object({
 });
 
 // =============================================================================
+// Link Finder Schemas
+// =============================================================================
+
+/**
+ * Link finder options
+ */
+const linkFinderOptionsSchema = z.object({
+  detectors: z
+    .array(z.enum(['refund', 'reference']))
+    .min(1, 'At least one detector is required')
+    .optional(),
+  maxDaysApart: z.number().int().positive().max(365).optional(),
+  allowPartialAmount: z.boolean().optional(),
+  minConfidence: z.number().min(0).max(1).optional(),
+});
+
+/**
+ * Link find request body (streaming and non-streaming)
+ */
+export const linkFindSchema = z.object({
+  startDate: optionalDateString,
+  endDate: optionalDateString,
+  options: linkFinderOptionsSchema.optional(),
+});
+
+/**
+ * Bulk link creation request body (journal IDs, not transaction group IDs)
+ */
+export const bulkLinkSchema = z.object({
+  links: z
+    .array(
+      z.object({
+        inwardId: z.string().min(1),
+        outwardId: z.string().min(1),
+        linkTypeName: z.string().min(1).max(255),
+        notes: z.string().max(65535).optional(),
+      })
+    )
+    .min(1, 'At least one link is required')
+    .max(100, 'Maximum 100 links per request'),
+});
+
+// =============================================================================
 // Suggestion Schemas
 // =============================================================================
 
@@ -580,6 +623,9 @@ export type TransactionUpdateBody = z.infer<typeof transactionUpdateSchema>;
 // Duplicate types
 export type DuplicateFindBody = z.infer<typeof duplicateFindSchema>;
 export type BulkDeleteBody = z.infer<typeof bulkDeleteSchema>;
+// Link finder types
+export type LinkFindBody = z.infer<typeof linkFindSchema>;
+export type BulkLinkBody = z.infer<typeof bulkLinkSchema>;
 // Suggestion types
 export type SuggestionRequestBody = z.infer<typeof suggestionRequestSchema>;
 export type ApplySuggestionsBody = z.infer<typeof applySuggestionsSchema>;

@@ -34,6 +34,12 @@ const routes: RouteRecordRaw[] = [
     meta: getToolMeta('/subscriptions'),
   },
   {
+    path: '/links',
+    name: 'Links',
+    component: () => import('../views/LinksView.vue'),
+    meta: getToolMeta('/links'),
+  },
+  {
     path: '/categories',
     name: 'Categories',
     component: () => import('../views/CategoriesView.vue'),
