@@ -640,6 +640,18 @@ export class FireflyApiClient {
 
   // ============ Transaction Links ============
 
+  /** Returns the transaction group containing the given journal (split) */
+  async getTransactionByJournal(journalId: string): Promise<FireflyTransaction> {
+    try {
+      const response = await this.client.get<FireflyApiResponse<FireflyTransaction>>(
+        `/transaction-journals/${journalId}`
+      );
+      return response.data.data;
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
   async getAllLinkTypes(): Promise<FireflyLinkType[]> {
     return this.getAllPages<FireflyLinkType>('/link-types');
   }

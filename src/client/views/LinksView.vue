@@ -160,6 +160,7 @@
               </v-chip>
               <v-spacer />
               <ConfidenceBreakdown
+                v-if="!candidate.detectors.includes('manual')"
                 :score="candidate.matchScore"
                 :items="getBreakdownItems(candidate.confidenceBreakdown)"
               />
@@ -198,7 +199,7 @@
                     density="compact"
                     variant="outlined"
                     hide-details
-                    class="w-100"
+                    class="w-100 flex-grow-0"
                   />
                 </v-col>
                 <v-col cols="12" md="5" class="d-flex flex-column">
@@ -217,7 +218,34 @@
         </template>
       </template>
 
-      <!-- Final Action Button (Find Links) -->
+      <!-- Step 3: Manual Linking -->
+      <template #content-3>
+        <div class="manual-match-step">
+          <v-progress-linear v-if="journalsLoading" indeterminate color="primary" class="mb-2" />
+          <ManualMatchBoard
+            :create-button-text="t('common.buttons.createManualMatch')"
+            :create-disabled="!canCreateManualLink"
+            :source-title="t('views.links.original')"
+            :source-empty-title="t('views.links.manual.noTransactions')"
+            :source-items="manualOriginalItems"
+            :selected-source-id="selectedOriginalId"
+            :transaction-title="t('views.links.related')"
+            :transaction-empty-title="t('views.links.manual.noTransactions')"
+            :transaction-items="manualRelatedItems"
+            :selected-transaction-id="selectedRelatedId"
+            :assignments-title="t('common.manualMatching.currentAssignmentsTitle')"
+            :assignments-empty-title="t('common.manualMatching.noAssignmentsTitle')"
+            :assignments="manualAssignments"
+            :remove-button-text="t('common.buttons.removeManualMatch')"
+            @select-source="selectedOriginalId = selectedOriginalId === $event ? null : $event"
+            @select-transaction="selectedRelatedId = selectedRelatedId === $event ? null : $event"
+            @create-match="createManualLink"
+            @remove-match="removeManualLink"
+          />
+        </div>
+      </template>
+
+      <!-- Final Action Button (Find Links / Link manual pairs) -->
       <template #final-action>
         <FinalActionButton
           v-if="currentStep === 2"
@@ -228,6 +256,16 @@
           :loading="loading"
           @click="findLinks"
         />
+        <v-btn
+          v-else-if="currentStep === 3"
+          color="success"
+          prepend-icon="mdi-link-plus"
+          :loading="linking"
+          :disabled="selection.selected.value.length === 0"
+          @click="linkSelected"
+        >
+          {{ t('views.links.linkSelected') }} ({{ selection.selected.value.length }})
+        </v-btn>
       </template>
     </WizardStepper>
   </div>
@@ -239,9 +277,11 @@ import { useI18n } from 'vue-i18n';
 import api from '../services/api';
 import type {
   LinkCandidate,
+  LinkCandidateSource,
   LinkConfidenceBreakdown,
   LinkDetector,
   LinkTypeInfo,
+  LinkedJournal,
 } from '@shared/types/app';
 import {
   WizardStepper,
@@ -252,8 +292,13 @@ import {
   ProgressCard,
   ResultsSummaryCard,
   FinalActionButton,
+  ManualMatchBoard,
 } from '../components/common';
 import type { BreakdownItem } from '../components/common/ConfidenceBreakdown.vue';
+import type {
+  ManualMatchBoardAssignment,
+  ManualMatchBoardItem,
+} from '../components/common/ManualMatchBoard.vue';
 import {
   useProgress,
   useSelection,
@@ -264,21 +309,30 @@ import {
   type ProgressData,
   type ValidationErrorData,
 } from '../composables';
-import { LinkCandidateSchema } from '../utils';
+import { LinkCandidateSchema, formatCurrency, formatDate } from '../utils';
+import { generateId } from '@shared/utils/id';
 
 /** Maximum links per create-bulk request (matches server validation) */
 const LINK_BATCH_SIZE = 100;
 
-const DETECTORS: LinkDetector[] = ['refund', 'reimbursement', 'reference'];
+const DETECTORS: LinkDetector[] = ['refund', 'reimbursement', 'reference', 'learned'];
 
-const DETECTOR_STYLES: Record<LinkDetector, { color: string; icon: string }> = {
+const DETECTOR_STYLES: Record<LinkCandidateSource, { color: string; icon: string }> = {
   refund: { color: 'deep-orange', icon: 'mdi-cash-refund' },
   reimbursement: { color: 'teal', icon: 'mdi-account-cash' },
   reference: { color: 'blue', icon: 'mdi-pound' },
+  learned: { color: 'purple', icon: 'mdi-school' },
+  manual: { color: 'grey', icon: 'mdi-hand-back-right' },
+};
+
+const TRANSACTION_TYPE_COLORS: Record<string, string> = {
+  withdrawal: 'error',
+  deposit: 'success',
+  transfer: 'info',
 };
 
 // i18n
-const { t } = useI18n();
+const { t, te } = useI18n();
 
 // Snackbar
 const { showSnackbar } = useSnackbar();
@@ -290,6 +344,10 @@ const wizardSteps = computed(() => [
   {
     title: t('common.steps.findReview'),
     subtitle: t('views.links.steps.findReview.subtitle'),
+  },
+  {
+    title: t('common.buttons.manualMatching'),
+    subtitle: t('views.links.steps.manual.subtitle'),
   },
 ]);
 
@@ -321,16 +379,104 @@ const progress = useProgress('Initializing...');
 const selection = useSelection<string>(() => candidates.value.length);
 
 const linkTypeItems = computed(() =>
-  linkTypes.value.map((lt) => ({ title: lt.name, value: lt.name }))
+  linkTypes.value.map((lt) => ({ title: linkTypeLabel(lt.name), value: lt.name }))
 );
 
-const summaryStats = computed(() =>
-  DETECTORS.map((detector) => ({
-    label: t(`views.links.detectors.${detector}`),
-    value: candidates.value.filter((c) => c.detectors.includes(detector)).length,
-    ...DETECTOR_STYLES[detector],
-  }))
+/** Built-in link types sharing their label with the detector of the same name */
+const LINK_TYPE_DETECTOR_LABELS: Record<string, LinkDetector> = {
+  Refund: 'refund',
+  Reimbursement: 'reimbursement',
+};
+
+/** Translates Firefly III's built-in link types; custom types keep their name */
+function linkTypeLabel(name: string): string {
+  const detector = LINK_TYPE_DETECTOR_LABELS[name];
+  const key = detector ? `views.links.detectors.${detector}` : `views.links.linkTypes.${name}`;
+  return te(key) ? t(key) : name;
+}
+
+const summaryStats = computed(() => {
+  const sources: LinkCandidateSource[] = [...DETECTORS];
+  if (candidates.value.some((c) => c.detectors.includes('manual'))) sources.push('manual');
+
+  return sources.map((source) => ({
+    label: t(`views.links.detectors.${source}`),
+    value: candidates.value.filter((c) => c.detectors.includes(source)).length,
+    ...DETECTOR_STYLES[source],
+  }));
+});
+
+// Step 3: Manual linking state
+const journals = ref<LinkedJournal[]>([]);
+const journalsLoading = ref(false);
+const selectedOriginalId = ref<string | null>(null);
+const selectedRelatedId = ref<string | null>(null);
+
+const canCreateManualLink = computed(
+  () =>
+    selectedOriginalId.value !== null &&
+    selectedRelatedId.value !== null &&
+    selectedOriginalId.value !== selectedRelatedId.value
 );
+
+/** Journals already used as related transaction (a refund/share belongs to one original) */
+const usedRelatedIds = computed(() => new Set(candidates.value.map((c) => c.related.journalId)));
+
+const manualOriginalItems = computed<ManualMatchBoardItem[]>(() => journals.value.map(toBoardItem));
+
+const manualRelatedItems = computed<ManualMatchBoardItem[]>(() =>
+  journals.value
+    .filter(
+      (j) => j.journalId !== selectedOriginalId.value && !usedRelatedIds.value.has(j.journalId)
+    )
+    .map(toBoardItem)
+);
+
+const manualAssignments = computed<ManualMatchBoardAssignment[]>(() =>
+  candidates.value
+    .filter((c) => c.detectors.includes('manual'))
+    .map((c) => ({
+      id: c.id,
+      sourceTitle: c.original.split.description,
+      sourceSubtitle: describeJournal(c.original),
+      transactionTitle: c.related.split.description,
+      transactionSubtitle: `${describeJournal(c.related)} · ${linkTypeLabel(
+        linkTypeByCandidate[c.id] || c.suggestedLinkType
+      )}`,
+    }))
+);
+
+function counterpartyOf(journal: LinkedJournal): string {
+  return journal.split.type === 'deposit'
+    ? journal.split.source_name
+    : journal.split.destination_name;
+}
+
+function formatJournalAmount(journal: LinkedJournal): string {
+  return formatCurrency(
+    Math.abs(Number.parseFloat(journal.split.amount)),
+    journal.split.currency_code
+  );
+}
+
+function describeJournal(journal: LinkedJournal): string {
+  return `${formatDate(journal.split.date)} · ${formatJournalAmount(journal)}`;
+}
+
+function toBoardItem(journal: LinkedJournal): ManualMatchBoardItem {
+  return {
+    id: journal.journalId,
+    title: journal.split.description,
+    subtitle: `${formatDate(journal.split.date)} · ${counterpartyOf(journal)}`,
+    amount: formatJournalAmount(journal),
+    chips: [
+      {
+        label: t(`views.links.transactionTypes.${journal.split.type}`),
+        color: TRANSACTION_TYPE_COLORS[journal.split.type],
+      },
+    ],
+  };
+}
 
 // Computed: Can proceed to next step
 const canProceed = computed(() => {
@@ -409,6 +555,82 @@ function onStepNext(step: number) {
   if (step === 2) {
     findLinks();
   }
+  // Reload every time, the date range may have changed (served from the server cache)
+  if (step === 3) {
+    loadJournals();
+  }
+}
+
+async function loadJournals() {
+  journalsLoading.value = true;
+  try {
+    const response = await api.post('/links/journals', {
+      startDate: startDate.value,
+      endDate: endDate.value,
+    });
+    journals.value = (response.data.data as LinkedJournal[]).sort((a, b) =>
+      b.split.date.localeCompare(a.split.date)
+    );
+  } catch (error) {
+    showSnackbar(
+      error instanceof Error ? error.message : t('views.links.manual.failedToLoad'),
+      'error'
+    );
+  } finally {
+    journalsLoading.value = false;
+  }
+}
+
+function suggestManualLinkType(original: LinkedJournal, related: LinkedJournal): string {
+  if (original.split.type === 'withdrawal' && related.split.type === 'deposit') {
+    const sameCounterparty =
+      counterpartyOf(original).trim().toLowerCase() ===
+      counterpartyOf(related).trim().toLowerCase();
+    return resolveLinkType(sameCounterparty ? 'Refund' : 'Reimbursement');
+  }
+  return resolveLinkType('Related');
+}
+
+function createManualLink() {
+  const original = journals.value.find((j) => j.journalId === selectedOriginalId.value);
+  const related = journals.value.find((j) => j.journalId === selectedRelatedId.value);
+  if (!original || !related || original.journalId === related.journalId) return;
+
+  const relatedAmount = Math.abs(Number.parseFloat(related.split.amount));
+  const originalAmount = Math.abs(Number.parseFloat(original.split.amount));
+  const candidate: LinkCandidate = {
+    id: generateId(),
+    detectors: ['manual'],
+    original,
+    related,
+    suggestedLinkType: suggestManualLinkType(original, related),
+    isPartial: relatedAmount < originalAmount - 0.01,
+    matchScore: 1,
+    matchReasons: [],
+    confidenceBreakdown: {
+      referenceMatch: 0,
+      learnedPattern: 0,
+      amountMatch: 0,
+      counterpartyMatch: 0,
+      keywordMatch: 0,
+      dateProximity: 0,
+      sameAccount: 0,
+      unusualAmount: 0,
+      uniqueAmount: 0,
+    },
+  };
+
+  candidates.value.unshift(candidate);
+  linkTypeByCandidate[candidate.id] = candidate.suggestedLinkType;
+  selection.toggle(candidate.id, true);
+  // Keep the original selected so several related transactions can be added in a row
+  selectedRelatedId.value = null;
+  showSnackbar(t('views.links.manual.created'), 'success');
+}
+
+function removeManualLink(candidateId: string) {
+  dismissCandidate(candidateId);
+  showSnackbar(t('views.links.manual.removed'), 'info');
 }
 
 // Reset wizard
@@ -422,6 +644,9 @@ function onReset() {
   loading.value = false;
   hasSearched.value = false;
   candidates.value = [];
+  journals.value = [];
+  selectedOriginalId.value = null;
+  selectedRelatedId.value = null;
 }
 
 // Stream processor
@@ -577,6 +802,11 @@ function getBreakdownItems(breakdown: LinkConfidenceBreakdown): BreakdownItem[] 
       value: breakdown.referenceMatch,
       max: 0.4,
     },
+    {
+      label: t('views.links.breakdown.learnedPattern'),
+      value: breakdown.learnedPattern,
+      max: 0.4,
+    },
     { label: t('common.labels.amountMatch'), value: breakdown.amountMatch, max: 0.35 },
     {
       label: t('views.links.breakdown.counterpartyMatch'),
@@ -615,6 +845,14 @@ function getBreakdownItems(breakdown: LinkConfidenceBreakdown): BreakdownItem[] 
   flex-direction: column;
   height: 100%;
   padding: 16px;
+}
+
+.manual-match-step {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 959px) {

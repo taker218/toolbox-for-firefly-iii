@@ -151,6 +151,7 @@ describe('LinkFinder', () => {
       getAllTransactions: vi.fn().mockResolvedValue([]),
       getAllTransactionLinks: vi.fn().mockResolvedValue([]),
       getAllLinkTypes: vi.fn().mockResolvedValue([]),
+      getTransactionByJournal: vi.fn().mockRejectedValue(new Error('not found')),
       createTransactionLink: vi.fn().mockResolvedValue({}),
     };
     finder = new LinkFinder(mockFireflyApi);
@@ -416,6 +417,117 @@ describe('LinkFinder', () => {
       });
 
       expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('learned patterns', () => {
+    const reimbursementType = {
+      id: '5',
+      type: 'link_types',
+      attributes: {
+        name: 'Reimbursement',
+        inward: 'is (partially) reimbursed by',
+        outward: '(partially) reimburses',
+        editable: false,
+      },
+    };
+
+    // Related (inward) reimburses original (outward), as created by the link finder
+    function link(id: string, related: string, original: string) {
+      return {
+        id,
+        type: 'transaction_links',
+        attributes: { link_type_id: '5', inward_id: related, outward_id: original, notes: null },
+      };
+    }
+
+    const september = [
+      withdrawal('1', '2024-09-05', '17.99', 'Google YouTube'),
+      deposit('2', '2024-09-07', '4.50', 'Anna Schmidt'),
+      deposit('3', '2024-09-08', '4.50', 'Ben Mueller'),
+      deposit('4', '2024-09-10', '4.50', 'Clara Weber'),
+    ];
+    const septemberLinks = [link('1', '2', '1'), link('2', '3', '1'), link('3', '4', '1')];
+
+    beforeEach(() => {
+      mockFireflyApi.getAllLinkTypes.mockResolvedValue([reimbursementType]);
+      mockFireflyApi.getAllTransactionLinks.mockResolvedValue(septemberLinks);
+    });
+
+    it('should suggest monthly cost sharing following existing links', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        ...september,
+        withdrawal('11', '2024-10-05', '17.99', 'Google YouTube'),
+        deposit('12', '2024-10-06', '4.50', 'Anna Schmidt'),
+        deposit('13', '2024-10-09', '4.50', 'Ben Mueller'),
+        deposit('14', '2024-10-12', '4.50', 'Clara Weber'),
+      ]);
+
+      const result = await finder.findLinks();
+
+      expect(result).toHaveLength(3);
+      expect(result.every((c) => c.detectors.includes('learned'))).toBe(true);
+      expect(result.every((c) => c.original.journalId === '11')).toBe(true);
+      expect(result.map((c) => c.related.journalId).sort()).toEqual(['12', '13', '14']);
+      expect(result.every((c) => c.suggestedLinkType === 'Reimbursement')).toBe(true);
+      expect(result.every((c) => c.isPartial)).toBe(true);
+    });
+
+    it('should fetch linked journals outside the analyzed date range', async () => {
+      const byJournal = new Map(september.map((t) => [t.id, t]));
+      mockFireflyApi.getTransactionByJournal = vi.fn((id: string) =>
+        Promise.resolve(byJournal.get(id))
+      );
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        withdrawal('11', '2024-10-05', '17.99', 'Google YouTube'),
+        deposit('12', '2024-10-06', '4.50', 'Anna Schmidt'),
+      ]);
+
+      const result = await finder.findLinks();
+
+      expect(mockFireflyApi.getTransactionByJournal).toHaveBeenCalledWith('1');
+      expect(result).toHaveLength(1);
+      expect(result[0].related.journalId).toBe('12');
+    });
+
+    it('should ignore unknown counterparties and deviating amounts', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        ...september,
+        withdrawal('11', '2024-10-05', '17.99', 'Google YouTube'),
+        deposit('12', '2024-10-06', '4.50', 'Dieter Unbekannt'),
+        deposit('13', '2024-10-09', '9.00', 'Ben Mueller'),
+      ]);
+
+      const result = await finder.findLinks();
+
+      expect(result).toHaveLength(0);
+    });
+
+    it('should ignore deposits far off the learned time offset', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        ...september,
+        withdrawal('11', '2024-10-05', '17.99', 'Google YouTube'),
+        deposit('12', '2024-10-30', '4.50', 'Anna Schmidt'),
+      ]);
+
+      const result = await finder.findLinks();
+
+      expect(result).toHaveLength(0);
+    });
+
+    it('should not learn when the detector is disabled', async () => {
+      mockFireflyApi.getAllTransactions.mockResolvedValue([
+        ...september,
+        withdrawal('11', '2024-10-05', '17.99', 'Google YouTube'),
+        deposit('12', '2024-10-06', '4.50', 'Anna Schmidt'),
+      ]);
+
+      const result = await finder.findLinks(undefined, undefined, {
+        detectors: ['refund', 'reimbursement', 'reference'],
+      });
+
+      expect(result).toHaveLength(0);
+      expect(mockFireflyApi.getAllLinkTypes).not.toHaveBeenCalled();
     });
   });
 

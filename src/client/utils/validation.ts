@@ -250,6 +250,7 @@ export type ValidatedDuplicateGroup = z.infer<typeof DuplicateGroupSchema>;
  */
 export const LinkConfidenceBreakdownSchema = z.object({
   referenceMatch: z.number(),
+  learnedPattern: z.number(),
   amountMatch: z.number(),
   counterpartyMatch: z.number(),
   keywordMatch: z.number(),
@@ -270,7 +271,7 @@ const LinkedJournalSchema = z.object({
  */
 export const LinkCandidateSchema = z.object({
   id: z.string(),
-  detectors: z.array(z.enum(['refund', 'reimbursement', 'reference'])),
+  detectors: z.array(z.enum(['refund', 'reimbursement', 'reference', 'learned', 'manual'])),
   original: LinkedJournalSchema,
   related: LinkedJournalSchema,
   suggestedLinkType: z.string(),

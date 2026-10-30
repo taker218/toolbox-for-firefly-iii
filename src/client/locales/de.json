@@ -428,6 +428,9 @@
       "steps": {
         "findReview": {
           "subtitle": "Zusammenhänge prüfen und verknüpfen"
+        },
+        "manual": {
+          "subtitle": "Buchungen von Hand verknüpfen"
         }
       },
       "clickToScan": "Klicke auf 'Zusammenhänge finden', um nach zusammengehörigen Buchungen zu suchen",
@@ -443,12 +446,29 @@
       "detectors": {
         "refund": "Erstattung",
         "reimbursement": "Auslagenerstattung",
-        "reference": "Gemeinsame Referenz"
+        "reference": "Gemeinsame Referenz",
+        "learned": "Aus Verknüpfungen gelernt",
+        "manual": "Manuell"
       },
       "partial": "Teilbetrag",
       "original": "Ursprüngliche Buchung",
       "related": "Zugehörige Buchung",
       "linkType": "Verknüpfungstyp",
+      "linkTypes": {
+        "Related": "Zusammenhängend",
+        "Paid": "Bezahlung"
+      },
+      "transactionTypes": {
+        "withdrawal": "Ausgabe",
+        "deposit": "Einnahme",
+        "transfer": "Umbuchung"
+      },
+      "manual": {
+        "noTransactions": "Keine Buchungen in diesem Zeitraum",
+        "created": "Paar hinzugefügt und zum Verknüpfen ausgewählt",
+        "removed": "Paar entfernt",
+        "failedToLoad": "Buchungen konnten nicht geladen werden"
+      },
       "linkSelected": "Ausgewählte verknüpfen",
       "dismiss": "Verwerfen (kein Zusammenhang)",
       "foundLinks": "{count} mögliche Zusammenhänge gefunden",
@@ -459,6 +479,7 @@
       "linkFailedCount": "{count} Verknüpfung(en) konnten nicht angelegt werden",
       "breakdown": {
         "referenceMatch": "Gemeinsame Referenz",
+        "learnedPattern": "Gelerntes Muster",
         "counterpartyMatch": "Gegenkonto",
         "keywordMatch": "Stichwort",
         "dateProximity": "Zeitabstand",

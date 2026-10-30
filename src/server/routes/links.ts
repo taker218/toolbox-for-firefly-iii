@@ -20,10 +20,13 @@ import {
   linkFindSchema,
   bulkLinkSchema,
   countTransactionsSchema,
+  dateRangeSchema,
   type LinkFindBody,
   type BulkLinkBody,
   type CountTransactionsBody,
+  type DateRangeBody,
 } from '../utils/index.js';
+import type { LinkedJournal } from '../../shared/types/app.js';
 
 const logger = createLogger('Links');
 
@@ -101,6 +104,33 @@ router.post(
       data: results,
       message: `Created ${results.successful.length} links, ${results.failed.length} failed`,
     });
+  })
+);
+
+// All journals (splits) in the date range, for manual linking
+router.post(
+  '/journals',
+  validateBody(dateRangeSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { startDate, endDate } = req.body as DateRangeBody;
+    const sessionId = getPersistedSessionId(req);
+    const cacheKey = getCacheKey(startDate, endDate);
+
+    let transactions = getCachedTransactions(sessionId, cacheKey);
+    if (!transactions) {
+      transactions = await getFireflyApi().getAllTransactions(startDate, endDate);
+      setCachedTransactions(sessionId, cacheKey, transactions);
+    }
+
+    const journals: LinkedJournal[] = transactions.flatMap((t) =>
+      t.attributes.transactions.map((split) => ({
+        transactionId: t.id,
+        journalId: split.transaction_journal_id,
+        split,
+      }))
+    );
+
+    res.json({ success: true, data: journals });
   })
 );
 

@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import { FireflyApiClient } from '../clients/firefly.js';
 import { createLogger } from '../utils/logger.js';
-import type { FireflyTransaction, FireflyTransactionSplit } from '../../shared/types/firefly.js';
+import type {
+  FireflyTransaction,
+  FireflyTransactionLink,
+  FireflyTransactionSplit,
+} from '../../shared/types/firefly.js';
 import type {
   LinkCandidate,
   LinkConfidenceBreakdown,
@@ -19,6 +23,15 @@ const AMOUNT_EPSILON = 0.01;
 const MIN_COUNTERPARTY_SIMILARITY = 0.5;
 /** References shared by more journals than this are treated as non-unique (e.g. customer numbers) */
 const MAX_REFERENCE_GROUP_SIZE = 6;
+/** Only the newest links are used as patterns (journals outside the range are fetched one by one) */
+const MAX_PATTERN_LINKS = 50;
+/** Minimum counterparty similarity to follow a learned pattern */
+const PATTERN_MIN_SIMILARITY = 0.8;
+/** Allowed deviation in days from the time offset of a learned pattern */
+const PATTERN_DAY_TOLERANCE = 10;
+/** Allowed relative deviation from the amounts of a learned pattern */
+const PATTERN_ORIGINAL_AMOUNT_TOLERANCE = 0.2;
+const PATTERN_RELATED_AMOUNT_TOLERANCE = 0.1;
 
 // Weights (summed and capped at 100%)
 const WEIGHTS = {
@@ -31,6 +44,7 @@ const WEIGHTS = {
   sameAccount: 0.05,
   unusualAmount: 0.15,
   uniqueAmount: 0.1,
+  learnedPattern: 0.4,
 } as const;
 
 /** Normalized (umlauts transliterated) keywords indicating a refund */
@@ -125,6 +139,16 @@ interface ScoredPair {
   matchedReference?: string;
 }
 
+/** A pattern learned from an existing link */
+interface LinkPattern {
+  key: string;
+  original: JournalInfo;
+  related: JournalInfo;
+  linkType: string;
+  /** Days from original to related transaction */
+  dayOffset: number;
+}
+
 /** Deposits and withdrawal amounts already assigned by an amount-based detector */
 interface AmountClaims {
   usedDeposits: Set<string>;
@@ -141,7 +165,7 @@ export interface CreateLinkRequest {
 export class LinkFinder {
   private readonly fireflyApi: FireflyApiClient;
   private readonly defaultOptions: Required<LinkFinderOptions> = {
-    detectors: ['refund', 'reimbursement', 'reference'],
+    detectors: ['refund', 'reimbursement', 'reference', 'learned'],
     maxDaysApart: 90,
     allowPartialAmount: true,
     minConfidence: 0.6,
@@ -209,6 +233,15 @@ export class LinkFinder {
         data: { current: 0, total: 0, message: 'Matching reimbursements...' },
       };
       this.detectReimbursements(journals, opts, claims, pairs);
+    }
+
+    if (opts.detectors.includes('learned') && existingLinks.length > 0) {
+      yield {
+        type: 'progress',
+        data: { current: 0, total: 0, message: 'Learning from existing links...' },
+      };
+      const patterns = await this.buildPatterns(journals, existingLinks);
+      this.detectLearned(journals, patterns, opts, claims, pairs);
     }
 
     if (opts.detectors.includes('reference')) {
@@ -461,6 +494,174 @@ export class LinkFinder {
     };
   }
 
+  // ============ Learned patterns ============
+
+  /**
+   * Turns existing links into patterns (counterparties, amounts, time offset), newest link
+   * first. Journals outside the analyzed range are fetched individually.
+   */
+  private async buildPatterns(
+    journals: JournalInfo[],
+    links: FireflyTransactionLink[]
+  ): Promise<LinkPattern[]> {
+    const byJournal = new Map(journals.map((j) => [j.journal.journalId, j]));
+    const linkTypeNames = new Map(
+      (await this.fireflyApi.getAllLinkTypes()).map((lt) => [lt.id, lt.attributes.name])
+    );
+    const newestLinks = [...links]
+      .sort((a, b) => Number(b.id) - Number(a.id))
+      .slice(0, MAX_PATTERN_LINKS);
+
+    const patterns = new Map<string, LinkPattern>();
+    for (const link of newestLinks) {
+      // By convention the related transaction (e.g. the refund) is inward
+      const related = await this.resolveJournal(link.attributes.inward_id, byJournal);
+      const original = await this.resolveJournal(link.attributes.outward_id, byJournal);
+      if (!related || !original) continue;
+      if (!hasIdentifiableCounterparty(original) || !hasIdentifiableCounterparty(related)) {
+        continue;
+      }
+
+      const key = [original.type, partyKey(original), related.type, partyKey(related)].join('|');
+      if (patterns.has(key)) continue;
+
+      patterns.set(key, {
+        key,
+        original,
+        related,
+        linkType:
+          link.attributes.link_type_name ??
+          linkTypeNames.get(link.attributes.link_type_id) ??
+          'Related',
+        dayOffset: related.day - original.day,
+      });
+    }
+
+    return [...patterns.values()];
+  }
+
+  private async resolveJournal(
+    journalId: string,
+    byJournal: Map<string, JournalInfo>
+  ): Promise<JournalInfo | null> {
+    const known = byJournal.get(journalId);
+    if (known) return known;
+
+    try {
+      const transaction = await this.fireflyApi.getTransactionByJournal(journalId);
+      const journal = this.toJournalInfos([transaction]).find(
+        (j) => j.journal.journalId === journalId
+      );
+      if (!journal) return null;
+      byJournal.set(journalId, journal);
+      return journal;
+    } catch (error) {
+      logger.warn(`Could not load linked journal ${journalId}`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Suggests links for transactions following a learned pattern, e.g. monthly cost sharing:
+   * same counterparties, similar amounts and a similar time offset as an existing link.
+   * Each related transaction is used once; an original may get one per pattern.
+   */
+  private detectLearned(
+    journals: JournalInfo[],
+    patterns: LinkPattern[],
+    opts: Required<LinkFinderOptions>,
+    claims: AmountClaims,
+    out: ScoredPair[]
+  ): void {
+    const scored: { pair: ScoredPair; slot: string }[] = [];
+
+    for (const pattern of patterns) {
+      const originals = journals.filter(
+        (j) =>
+          this.followsParty(pattern.original, j) &&
+          isWithin(j.amount, pattern.original.amount, PATTERN_ORIGINAL_AMOUNT_TOLERANCE)
+      );
+      const relateds = journals.filter(
+        (j) =>
+          this.followsParty(pattern.related, j) &&
+          isWithin(j.amount, pattern.related.amount, PATTERN_RELATED_AMOUNT_TOLERANCE)
+      );
+
+      for (const original of originals) {
+        for (const related of relateds) {
+          if (original.journal.transactionId === related.journal.transactionId) continue;
+          const deviation = Math.abs(related.day - original.day - pattern.dayOffset);
+          if (deviation > PATTERN_DAY_TOLERANCE) continue;
+
+          scored.push({
+            pair: this.scoreLearned(original, related, pattern, deviation),
+            slot: `${original.journal.journalId}|${pattern.key}`,
+          });
+        }
+      }
+    }
+
+    scored.sort((a, b) => totalScore(b.pair.breakdown) - totalScore(a.pair.breakdown));
+    const usedRelated = new Set<string>();
+    const usedSlots = new Set<string>();
+
+    for (const { pair, slot } of scored) {
+      if (totalScore(pair.breakdown) < opts.minConfidence) break;
+      const relatedId = pair.related.journal.journalId;
+      if (usedRelated.has(relatedId) || claims.usedDeposits.has(relatedId)) continue;
+      if (usedSlots.has(slot)) continue;
+
+      usedRelated.add(relatedId);
+      usedSlots.add(slot);
+      out.push(pair);
+    }
+  }
+
+  private followsParty(template: JournalInfo, journal: JournalInfo): boolean {
+    return (
+      template.type === journal.type &&
+      this.counterpartySimilarity(template, journal) >= PATTERN_MIN_SIMILARITY
+    );
+  }
+
+  private scoreLearned(
+    original: JournalInfo,
+    related: JournalInfo,
+    pattern: LinkPattern,
+    deviation: number
+  ): ScoredPair {
+    const breakdown = emptyBreakdown();
+    const reasons = ['Follows the pattern of an existing link', 'Same counterparties'];
+    breakdown.learnedPattern = WEIGHTS.learnedPattern;
+    breakdown.counterpartyMatch = WEIGHTS.counterparty;
+
+    if (Math.abs(related.amount - pattern.related.amount) <= AMOUNT_EPSILON) {
+      breakdown.amountMatch = WEIGHTS.exactAmount;
+      reasons.push('Same amount as in existing link');
+    } else {
+      breakdown.amountMatch = WEIGHTS.partialAmount;
+      reasons.push('Similar amount as in existing link');
+    }
+
+    breakdown.dateProximity = WEIGHTS.dateProximity * (1 - deviation / (PATTERN_DAY_TOLERANCE + 1));
+    reasons.push(`Time offset deviates by ${deviation} day(s)`);
+
+    if (original.assetAccountId && original.assetAccountId === related.assetAccountId) {
+      breakdown.sameAccount = WEIGHTS.sameAccount;
+      reasons.push('Same account');
+    }
+
+    return {
+      original,
+      related,
+      detector: 'learned',
+      linkType: pattern.linkType,
+      breakdown,
+      reasons,
+      isPartial: related.amount < original.amount - AMOUNT_EPSILON,
+    };
+  }
+
   // ============ Reference detection ============
 
   private detectReferences(
@@ -672,6 +873,7 @@ function pairKey(journalA: string, journalB: string): string {
 function emptyBreakdown(): LinkConfidenceBreakdown {
   return {
     referenceMatch: 0,
+    learnedPattern: 0,
     amountMatch: 0,
     counterpartyMatch: 0,
     keywordMatch: 0,
@@ -716,6 +918,18 @@ function groupByAmount(journals: JournalInfo[]): Map<string, JournalInfo[]> {
     groups.set(key, group);
   }
   return groups;
+}
+
+function isWithin(value: number, reference: number, tolerance: number): boolean {
+  return Math.abs(value - reference) <= reference * tolerance + AMOUNT_EPSILON;
+}
+
+function hasIdentifiableCounterparty(journal: JournalInfo): boolean {
+  return !!(journal.counterparty || journal.counterpartyIban);
+}
+
+function partyKey(journal: JournalInfo): string {
+  return journal.counterpartyIban ?? journal.counterparty;
 }
 
 function totalScore(breakdown: LinkConfidenceBreakdown): number {

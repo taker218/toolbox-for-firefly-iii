@@ -30,10 +30,13 @@ export interface DuplicateFinderOptions {
 }
 
 // Link Finder Types (finds related transactions to link in Firefly III)
-export type LinkDetector = 'refund' | 'reimbursement' | 'reference';
+export type LinkDetector = 'refund' | 'reimbursement' | 'reference' | 'learned';
+/** Where a link candidate comes from: an automatic detector or the user */
+export type LinkCandidateSource = LinkDetector | 'manual';
 
 export interface LinkConfidenceBreakdown {
   referenceMatch: number; // 40% max weight - shared reference ID
+  learnedPattern: number; // 40% max weight - matches the pattern of an existing link
   amountMatch: number; // 35% max weight - same amount or partial amount
   counterpartyMatch: number; // 30% max weight - same merchant/counterparty
   keywordMatch: number; // 20% max weight - refund keywords in description/notes
@@ -53,7 +56,7 @@ export interface LinkedJournal {
 
 export interface LinkCandidate {
   id: string;
-  detectors: LinkDetector[];
+  detectors: LinkCandidateSource[];
   /** The original transaction (e.g. the purchase) */
   original: LinkedJournal;
   /** The related transaction (e.g. the refund) */

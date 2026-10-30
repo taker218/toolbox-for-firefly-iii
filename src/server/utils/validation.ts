@@ -432,7 +432,7 @@ export const bulkDeleteSchema = z.object({
  */
 const linkFinderOptionsSchema = z.object({
   detectors: z
-    .array(z.enum(['refund', 'reimbursement', 'reference']))
+    .array(z.enum(['refund', 'reimbursement', 'reference', 'learned']))
     .min(1, 'At least one detector is required')
     .optional(),
   maxDaysApart: z.number().int().positive().max(365).optional(),

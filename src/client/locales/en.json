@@ -428,6 +428,9 @@
       "steps": {
         "findReview": {
           "subtitle": "Review and link related transactions"
+        },
+        "manual": {
+          "subtitle": "Link transactions manually"
         }
       },
       "clickToScan": "Click 'Find Relations' to search for related transactions",
@@ -443,12 +446,29 @@
       "detectors": {
         "refund": "Refund",
         "reimbursement": "Reimbursement",
-        "reference": "Shared reference"
+        "reference": "Shared reference",
+        "learned": "Learned from links",
+        "manual": "Manual"
       },
       "partial": "Partial",
       "original": "Original transaction",
       "related": "Related transaction",
       "linkType": "Link type",
+      "linkTypes": {
+        "Related": "Related",
+        "Paid": "Payment"
+      },
+      "transactionTypes": {
+        "withdrawal": "Expense",
+        "deposit": "Income",
+        "transfer": "Transfer"
+      },
+      "manual": {
+        "noTransactions": "No transactions in this date range",
+        "created": "Pair added and selected for linking",
+        "removed": "Pair removed",
+        "failedToLoad": "Failed to load transactions"
+      },
       "linkSelected": "Link Selected",
       "dismiss": "Dismiss (not related)",
       "foundLinks": "Found {count} possible relations",
@@ -459,6 +479,7 @@
       "linkFailedCount": "{count} link(s) could not be created",
       "breakdown": {
         "referenceMatch": "Shared Reference",
+        "learnedPattern": "Learned Pattern",
         "counterpartyMatch": "Counterparty",
         "keywordMatch": "Keyword",
         "dateProximity": "Time Gap",
